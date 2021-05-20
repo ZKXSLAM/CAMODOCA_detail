@@ -1,0 +1,42 @@
+
+#ifndef CAMODOCAL_FIVEPOINT_EXPORT_H
+#define CAMODOCAL_FIVEPOINT_EXPORT_H
+
+#ifdef CAMODOCAL_FIVEPOINT_STATIC_DEFINE
+#  define CAMODOCAL_FIVEPOINT_EXPORT
+#  define CAMODOCAL_FIVEPOINT_NO_EXPORT
+#else
+#  ifndef CAMODOCAL_FIVEPOINT_EXPORT
+#    ifdef camodocal_fivepoint_EXPORTS
+        /* We are building this library */
+#      define CAMODOCAL_FIVEPOINT_EXPORT __attribute__((visibility("default")))
+#    else
+        /* We are using this library */
+#      define CAMODOCAL_FIVEPOINT_EXPORT __attribute__((visibility("default")))
+#    endif
+#  endif
+
+#  ifndef CAMODOCAL_FIVEPOINT_NO_EXPORT
+#    define CAMODOCAL_FIVEPOINT_NO_EXPORT __attribute__((visibility("hidden")))
+#  endif
+#endif
+
+#ifndef CAMODOCAL_FIVEPOINT_DEPRECATED
+#  define CAMODOCAL_FIVEPOINT_DEPRECATED __attribute__ ((__deprecated__))
+#endif
+
+#ifndef CAMODOCAL_FIVEPOINT_DEPRECATED_EXPORT
+#  define CAMODOCAL_FIVEPOINT_DEPRECATED_EXPORT CAMODOCAL_FIVEPOINT_EXPORT CAMODOCAL_FIVEPOINT_DEPRECATED
+#endif
+
+#ifndef CAMODOCAL_FIVEPOINT_DEPRECATED_NO_EXPORT
+#  define CAMODOCAL_FIVEPOINT_DEPRECATED_NO_EXPORT CAMODOCAL_FIVEPOINT_NO_EXPORT CAMODOCAL_FIVEPOINT_DEPRECATED
+#endif
+
+#if 0 /* DEFINE_NO_DEPRECATED */
+#  ifndef CAMODOCAL_FIVEPOINT_NO_DEPRECATED
+#    define CAMODOCAL_FIVEPOINT_NO_DEPRECATED
+#  endif
+#endif
+
+#endif /* CAMODOCAL_FIVEPOINT_EXPORT_H */

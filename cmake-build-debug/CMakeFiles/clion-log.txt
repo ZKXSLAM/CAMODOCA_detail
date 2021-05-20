@@ -1,0 +1,118 @@
+/home/zoukaixiang/3rdparty/clion-2021.1.1/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - Unix Makefiles" /home/zoukaixiang/code/camodocal
+CMake Warning (dev) at CMakeLists.txt:5 (project):
+  Policy CMP0048 is not set: project() command manages VERSION variables.
+  Run "cmake --help-policy CMP0048" for policy details.  Use the cmake_policy
+  command to set the policy and suppress this warning.
+
+  The following variable(s) would be set to empty:
+
+    PROJECT_VERSION
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CUDA_TOOLKIT_ROOT_DIR not found or specified
+-- Could NOT find CUDA (missing: CUDA_TOOLKIT_ROOT_DIR CUDA_NVCC_EXECUTABLE CUDA_INCLUDE_DIRS CUDA_CUDART_LIBRARY) 
+-- Found installed version of Eigen: /usr/lib/cmake/eigen3
+-- Found required Ceres dependency: Eigen version 3.2.92 in /usr/include/eigen3
+-- Found installed version of glog: /usr/local/lib/cmake/glog
+-- Detected glog version: 0.5.0
+-- Found required Ceres dependency: glog
+-- Found installed version of gflags: /usr/local/lib/cmake/gflags
+-- Detected gflags version: 2.2.2
+-- Found required Ceres dependency: gflags
+-- Found Ceres version: 1.14.0 installed in: /usr/local with components: [EigenSparse, SparseLinearAlgebraLibrary, SchurSpecializations, OpenMP, Multithreading]
+-- Could NOT find GTest (missing:  GTEST_LIBRARY GTEST_MAIN_LIBRARY) 
+-- Found installed version of glog: /usr/local/lib/cmake/glog
+-- Detected glog version: 0.5.0
+-- Found installed version of gflags: /usr/local/lib/cmake/gflags
+-- Detected gflags version: 2.2.2
+-- Found Intel TBB
+-- OpenCV version: 3.4.1
+-- defined HAVE_OPENCV3
+-- OPENCV_CUDAFEATURES2D NOT PRESENT, DISABLING LOTS OF FUNCTIONALITY
+-- *** Build type is Debug ***
+-- Found SSE4.1 extensions, using flags: -msse4.1 -mfpmath=sse
+-- Could NOT find Librt (missing:  Librt_LIBRARIES) 
+CMake Deprecation Warning at src/brisk/thirdparty/agast/CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 2.8.12 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value or use a ...<max> suffix to tell
+  CMake that the project does not need compatibility with older versions.
+
+
+-- 
+-- ---------------------------------------------------
+-- DEPENDENCY:                 Required:    Found:
+-- ---------------------------------------------------
+-- BLAS                           yes         yes
+-- Eigen3                         yes         yes
+-- LAPACK                         yes         yes
+-- SuiteSparse                    yes         yes
+-- CUDA                           no          no
+-- Ceres                          no          yes
+-- GTest                          no          yes
+-- OpenMP                         no          yes
+-- Glog                           no          yes
+-- Gflags                         no          yes
+-- TBB                            no          yes
+-- OpenCV                         no          yes
+-- Threads                        no          yes
+-- 
+-- ---------------------------------------------------
+-- Library:                      Build:    Condition:
+-- ---------------------------------------------------
+-- agast                         TRUE      (satisfied)
+-- camodocal_brisk               TRUE      (satisfied)
+-- camodocal_calib               TRUE      (satisfied)
+-- camodocal_camera_models       TRUE      (satisfied)
+-- camodocal_camera_systems      TRUE      (satisfied)
+-- camodocal_chessboard          TRUE      (satisfied)
+-- camodocal_dbow2               TRUE      (satisfied)
+-- camodocal_dutils              TRUE      (satisfied)
+-- camodocal_dutilscv            TRUE      (satisfied)
+-- camodocal_dvision             TRUE      (satisfied)
+-- camodocal_features2d          TRUE      (satisfied)
+-- camodocal_gpl                 TRUE      (satisfied)
+-- camodocal_infrastr_calib      TRUE      (satisfied)
+-- camodocal_location_recognitionTRUE      (satisfied)
+-- camodocal_fivepoint           TRUE      (satisfied)
+-- camodocal_pose_estimation     TRUE      (satisfied)
+-- camodocal_pose_graph          TRUE      (satisfied)
+-- camodocal_pugixml             TRUE      (satisfied)
+-- camodocal_sparse_graph        TRUE      (satisfied)
+-- camodocal_visual_odometry     TRUE      (satisfied)
+-- 
+-- ---------------------------------------------------
+-- Executable:                   Build:    Condition:
+-- ---------------------------------------------------
+-- dbow2_demo                    TRUE      (satisfied)
+-- intrinsic_calib               TRUE      (satisfied)
+-- stereo_calib                  TRUE      (satisfied)
+-- extrinsic_calib               TRUE      (satisfied)
+-- train_voctree                 TRUE      (satisfied)
+-- 
+-- ---------------------------------------------------
+-- Test:                         Build:    Condition:
+-- ---------------------------------------------------
+-- CamOdoCalibration_test        FALSE     
+-- HandEyeCalibration_test       FALSE     
+-- PlanarHandEyeCalibration_test FALSE     
+-- CataCamera_test               FALSE     
+-- EquidistantCamera_test        FALSE     
+-- PinholeCamera_test            FALSE     
+-- SlidingWindowBA_test          FALSE     
+-- 
+CMake Warning at cmake/InstallProjectConfig.cmake:32 (export):
+  Cannot create package registry file:
+
+    /home/zoukaixiang/.cmake/packages/CAMODOCAL/192cf7767f86e5d76f59a4e811444cef
+
+  Permission denied
+
+Call Stack (most recent call first):
+  CMakeLists.txt:302 (INCLUDE)
+
+
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/zoukaixiang/code/camodocal/cmake-build-debug

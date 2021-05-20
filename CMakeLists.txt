@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 2.8.12 FATAL_ERROR)
 
+set(CMAKE_CXX_STANDARD 14)
 set(PROJECT_VERSION 1.0.1)
 project(CAMODOCAL LANGUAGES C CXX)
 
@@ -92,6 +93,7 @@ configure_file(CamOdoCalPathConfig.h.in ${CMAKE_CURRENT_BINARY_DIR}/CamOdoCalPat
 ############## Include Directories ##############
 
 # Set the search paths for include files
+set(EIGEN3_INCLUDE_DIR /usr/local/include/eigen3)
 include_directories(
   # External
   ${EIGEN3_INCLUDE_DIR}

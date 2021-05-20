@@ -38,22 +38,24 @@ main(int argc, char** argv)
     //Eigen::initParallel();
 
     std::string calibDir;
-    std::string odoEstimateFile;
-    int cameraCount;
-    float focal;
-    std::string outputDir;
+    std::string odoEstimateFile;  // 里程计估计文件
+    int cameraCount;              // 相机计数
+    float focal;                  // 焦距
+    std::string outputDir;        // 输出文件
     int nMotions;
-    int beginStage;
+    int beginStage;               //
     bool preprocessImages;
-    bool optimizeIntrinsics;
-    std::string dataDir;
+    bool optimizeIntrinsics;      // 是否优化内参
+    std::string dataDir;          // 数据地址
     bool verbose;
-    std::string inputDir;
-    float refCameraGroundHeight;
-    float keyframeDistance;
+    std::string inputDir;         // 输入文件
+    float refCameraGroundHeight;  // 相对相机真实高度
+    float keyframeDistance;       // 关键帧之间的距离
     std::string eventFile;
 
     //================= Handling Program options ==================
+    // program options是一系列pair<name,value>组成的选项列表,它允许程序通过命令行或配置文件来读取这些参数选项.
+    // options_description(选项描述器)，描述当前的程序定义了哪些选项
     boost::program_options::options_description desc("Allowed options");
     desc.add_options()
         ("help", "produce help message")
@@ -73,6 +75,7 @@ main(int argc, char** argv)
         ("keydist", boost::program_options::value<float>(&keyframeDistance)->default_value(0.4), "Distance of rig to be traveled before taking a keyframe (distance is measured by means of odometry poses)")
         ("verbose,v", boost::program_options::bool_switch(&verbose)->default_value(false), "Verbose output")
         ;
+    // variables_map(选项存储器),用于存储解析后的选项
     boost::program_options::variables_map vm;
     boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), vm);
     boost::program_options::notify(vm);
@@ -84,6 +87,7 @@ main(int argc, char** argv)
     }
 
     // Check if directory containing camera calibration files exists
+    // 相机内参标定文件的文件夹（好像对标定文件的命名没有要求）
     if (!boost::filesystem::exists(calibDir))
     {
         std::cout << "# ERROR: Directory " << calibDir << " does not exist." << std::endl;
@@ -92,7 +96,7 @@ main(int argc, char** argv)
 
     std::cout << "# INFO: Initializing... " << std::endl << std::flush;
 
-    if (beginStage > 0)
+    if (beginStage > 0) // 需要cuda
     {
 #ifdef HAVE_CUDA 
         // check for CUDA devices
