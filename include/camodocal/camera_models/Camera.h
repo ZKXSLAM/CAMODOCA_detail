@@ -14,9 +14,9 @@ class Camera
 public:
     enum ModelType
     {
-        KANNALA_BRANDT,
+        KANNALA_BRANDT, // 适合普通，广角和鱼眼
         MEI,
-        PINHOLE,
+        PINHOLE,       // 针孔相机
         SCARAMUZZA
     };
 

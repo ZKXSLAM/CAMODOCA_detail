@@ -87,18 +87,18 @@ main(int argc, char** argv)
     }
 
     // Check if directory containing camera calibration files exists
-    // 相机内参标定文件的文件夹（好像对标定文件的命名没有要求）
+    // 相机内参标定文件的文件夹（对标定文件的命名有要求,在下面有写）
     if (!boost::filesystem::exists(calibDir))
     {
         std::cout << "# ERROR: Directory " << calibDir << " does not exist." << std::endl;
         return 1;
     }
-
+    // calibDir :  /home/zoukaixiang/code/camodocal/build/bin/calib 指定的calib文件目录
     std::cout << "# INFO: Initializing... " << std::endl << std::flush;
 
     if (beginStage > 0) // 需要cuda
     {
-#ifdef HAVE_CUDA 
+#ifdef HAVE_CUDA
         // check for CUDA devices
         cv::cuda::DeviceInfo info;
         if (cv::cuda::getCudaEnabledDeviceCount() > 0 && info.isCompatible())
@@ -130,18 +130,19 @@ main(int argc, char** argv)
 
     //===========================Initialize calibration==========================
 
-    // read camera params
+    // read camera params 读取相机参数
     std::vector<camodocal::CameraPtr> cameras(cameraCount);
     for (int i = 0; i < cameraCount; ++i)
     {
         camodocal::CameraPtr camera;
         {
-            boost::filesystem::path calibFilePath(calibDir);
+            boost::filesystem::path calibFilePath(calibDir); // 对应用例的/calib
 
             std::ostringstream oss;
-            oss << "camera_" << i << "_calib.yaml";
-            calibFilePath /= oss.str();
+            oss << "camera_" << i << "_calib.yaml";  // 对应用例的camera_0_calib.yaml
+            calibFilePath /= oss.str();              // boost::filesystem::path支持重载/运算符
 
+            //返回yaml文件中指定的相机类型，并获取相应的相机参数
             camera = camodocal::CameraFactory::instance()->generateCameraFromYamlFile(calibFilePath.string());
             if (camera.get() == 0)
             {
@@ -151,7 +152,7 @@ main(int argc, char** argv)
             }
         }
 
-        // read camera mask
+        // read camera mask 读取相机掩模文件
         {
             boost::filesystem::path maskFilePath(calibDir);
 
@@ -174,6 +175,7 @@ main(int argc, char** argv)
     }
 
     // read extrinsic estimates
+    // 相当于map<unsigned,Eigen::Matrix4d> estimate;只是eigen需要利用Eigen::aligned_allocator重新对齐
     std::map<unsigned, Eigen::Matrix4d, std::less<unsigned>, Eigen::aligned_allocator<std::pair<const unsigned, Eigen::Matrix4d> > > estimates;
     if (odoEstimateFile.length())
     {
@@ -191,13 +193,13 @@ main(int argc, char** argv)
                 if (it == cameras.end()) continue;
 
                 std::cout << "# INFO: found estimate for camera " << line << std::endl;
-
+                // 获得相机的估计位姿
                 Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
                 file >> T(0,0) >> T(0,1) >> T(0,2) >> T(0,3);
                 file >> T(1,0) >> T(1,1) >> T(1,2) >> T(1,3);
                 file >> T(2,0) >> T(2,1) >> T(2,2) >> T(2,3);
 
-                estimates[std::distance(cameras.begin(), it)] = T;
+                estimates[std::distance(cameras.begin(), it)] = T;  //distance : Calculates the number of elements between first and last.
             }
         }
     }
@@ -205,27 +207,31 @@ main(int argc, char** argv)
 
     //========================= Get all files  =========================
     typedef std::map<int64_t, std::string>  ImageMap;
+
+    // 相当于 typedef map<int64_t,Eigen::Isometry3f> IsometryMap;
     typedef std::map<int64_t, Eigen::Isometry3f, std::less<int64_t>, Eigen::aligned_allocator<std::pair<const int64_t, Eigen::Isometry3f> > > IsometryMap;
 
     std::vector< ImageMap > inputImages(cameraCount);
-    IsometryMap inputOdometry;
+    IsometryMap inputOdometry; // 由输入文件获得的里程计的位姿T的map，由时间戳索引
     bool bUseGPS = false;
     if (eventFile.length() == 0)
     {
         printf("Get images and pose files out from result directory\n");
-
+        // inputDir : /home/zoukaixiang/code/camodocal/build/bin/extract
         fs::path inputFilePath(inputDir);
 
-        fs::recursive_directory_iterator it(inputFilePath);
+        fs::recursive_directory_iterator it(inputFilePath);// 描述一个输入迭代器，它对目录中的文件名进行排序，可能以递归方式降序到子目录
         fs::recursive_directory_iterator endit;
 
         while (it != endit)
         {
+            // is_regular_file:检查给定的文件状态或路径是否对应于常规文件。
             if (fs::is_regular_file(*it) && it->path().extension() == ".png")
             {
                 int camera = -1;
                 uint64_t timestamp = 0;
 
+                // sscanf:读取格式化的字符串中的数据 // it->path().filename().c_str() :  camera_0_1611288036800873802.png
                 if (sscanf(it->path().filename().c_str(), "camera_%d_%lu.png", &camera, &timestamp) != 2)
                 {
                     printf("cannot find input image camera_[d]_[llu].png\n");
@@ -235,6 +241,7 @@ main(int argc, char** argv)
                 inputImages[camera][timestamp] = it->path().string();
             }
 
+            // it->path().filename().string().find_first_of("pose_") == 0 : 文件名起始就是pose
             if (fs::is_regular_file(*it) && it->path().extension() == ".txt" && it->path().filename().string().find_first_of("pose_") == 0)
             {
                 uint64_t timestamp = 0;
@@ -248,6 +255,7 @@ main(int argc, char** argv)
                 Eigen::Vector3f t;
                 Eigen::Matrix3f R;
                 std::ifstream file(it->path().c_str());
+                // pose path : /home/zoukaixiang/code/camodocal/build/bin/extract/pose_1611287988722077180.txt
                 std::cout << "pose path : " << it->path().c_str() << std::endl;
                 if (!file.is_open())
                 {
@@ -272,7 +280,7 @@ main(int argc, char** argv)
 
             it++;
         }
-    }else
+    }else //eventFile.length() != 0
     {
         printf("Read %s file to get all the events\n", eventFile.c_str());
 
@@ -296,7 +304,7 @@ main(int argc, char** argv)
 
             str >> timestamp >> type;
 
-            if (type.compare("CAM") == 0)
+            if (type.compare("CAM") == 0)  // 如果类型是CAM
             {
                 int camid = 0;
                 std::string frame;
@@ -342,6 +350,7 @@ main(int argc, char** argv)
 
     CamRigOdoCalibration camRigOdoCalib(cameras, options);
 
+    // 设置初始的相机里程计位姿估计
     for(auto it : estimates) camRigOdoCalib.setInitialCameraOdoTransformEstimates(it.first, it.second);
 
     std::cout << "# INFO: Initialization finished!" << std::endl;
@@ -350,6 +359,7 @@ main(int argc, char** argv)
     {
         //uint64_t lastTimestamp = std::numeric_limits<uint64_t>::max();
 
+        // cameraCount : 1
         std::vector<ImageMap::iterator> camIterator(cameraCount);
         IsometryMap::iterator locIterator = inputOdometry.begin();
         for (int c=0; c < cameraCount; c++)
@@ -366,7 +376,7 @@ main(int argc, char** argv)
                 std::cout << "GPS: lat=" << gps[0] << ", lon=" << gps[1] << ", alt=" << gps[2]
                           << ", qx=" << q.x() << ", qy=" << q.y() << ", qz=" << q.z() << ", qw=" << q.w()
                           << " [" << timestamp << "]" << std::endl;
-            }else
+            }else //没有使用GPS
             {
                 float yaw = std::atan2(T.linear()(1,0), T.linear()(0,0));
                 camRigOdoCalib.addOdometry(T.translation()[0], T.translation()[1], T.translation()[2], yaw, timestamp);
@@ -375,11 +385,11 @@ main(int argc, char** argv)
             }
         };
 
-        // ensure that we have
-        // location data available, before adding images
+        // ensure that we have location data available, before adding images
+        // 在添加图像之前，请确保我们有可用的位置数据
         for (int i=0; i < 3 && locIterator != inputOdometry.end(); i++, locIterator++)
         {
-            addLocation(locIterator->first, locIterator->second);
+            addLocation(locIterator->first, locIterator->second); //addLocation(时间戳，里程计位姿)
         }
 
         while(locIterator != inputOdometry.end())
@@ -387,10 +397,10 @@ main(int argc, char** argv)
             if (camRigOdoCalib.isRunning()) break;
 
             int64_t locTime = locIterator->first;
-            addLocation(locTime, locIterator->second);
+            addLocation(locTime, locIterator->second);    //addLocation(时间戳，里程计位姿)
 
-            // now add image and location data, but such that
-            // location data is always fresher than camera data
+            // now add image and location data, but such that location data is always fresher than camera data
+            // 现在添加图像和位置数据，位置数据总是比相机数据更新
             bool hasData = true;
             while(hasData)
             {
@@ -462,7 +472,8 @@ main(int argc, char** argv)
         }
 #endif
 
-        if (!camRigOdoCalib.isRunning()) camRigOdoCalib.run();
+        if (!camRigOdoCalib.isRunning())
+        { camRigOdoCalib.run();}
     });
 
 
@@ -475,25 +486,27 @@ main(int argc, char** argv)
     //            you have already added either odometry or GPS/INS data
     //            with a timestamp greater than t, depending on the
     //            pose source you are calibrating against.
+    // 重要提示：创建一个线程，在此线程中，按时间戳增加的顺序添加数据，对于脱机模式有一个重要的例外：确保在添加时间戳为t的帧之前，
+    //         您已经添加了时间戳大于t的里程计或GPS/INS数据，这取决于您正在校准的姿势源。
     //
     // Add odometry and image data here.
     // camRigOdoCalib.addOdometry(x, y, yaw, timestamp);
     // camRigOdoCalib.addFrame(cameraId, image, timestamp);
     //
     // Alternatively, if you are calibrating against GPS/INS,
-    // set options.poseSource = GPS_INS, and add GPS/INS
-    // and image data here.
-    //
+    // 或者，如果您正在根据GPS/INS进行校准，
+    // set options.poseSource = GPS_INS, and add GPS/INS and image data here.
     // camRigOdoCalib.addGpsIns(lat, lon, alt, roll, pitch, yaw, timestamp);
     // camRigOdoCalib.addFrame(cameraId, image, timestamp);
     //
     // If options.mode == CamRigOdoCalibration::ONLINE,
-    // the addFrame call returns immediately.
+    // the addFrame call returns immediately. 则addFrame调用立即返回。
     // If options.mode == CamRigOdoCalibration::OFFLINE,
-    // the addFrame call returns after the image has been processed.
+    // the addFrame call returns after the image has been processed. 则addFrame调用在处理完图像后返回。
     //
     // After you are done, if the minimum number of motions has not been
     // reached, but you want to run the calibration anyway, call:
+    // 完成后，如果尚未达到最小运动次数，但仍要运行校准，请调用：
     // camRigOdoCalib.run();
     //
     //****************
@@ -503,7 +516,9 @@ main(int argc, char** argv)
     // Check camRigOdoCalib.running() to see if the calibration is running.
     // If so, you can stop adding data. To run the calibration without
     // waiting for the minimum motion requirement to be met,
-    //camRigOdoCalib.run();
+    // 接收和处理传入数据。一旦达到所有摄像机的最小运动次数，校准将自动运行。
+    // 检查camRigOdoCalib.running（）以查看校准是否正在运行。如果是这样，您可以停止添加数据。在不等待满足最小运动要求的情况下运行校准则调用
+    // camRigOdoCalib.run();
     camRigOdoCalib.start();
     
     CameraSystem cameraSystem = camRigOdoCalib.cameraSystem();

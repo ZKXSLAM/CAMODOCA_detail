@@ -67,8 +67,8 @@ CamRigOdoCalibration::~CamRigOdoCalibration()
 
 }
 
-void
-CamRigOdoCalibration::setInitialCameraOdoTransformEstimates(unsigned camIdx, const Eigen::Matrix4d& odoT)
+// 设置初始的相机里程计位姿估计
+void CamRigOdoCalibration::setInitialCameraOdoTransformEstimates(unsigned camIdx, const Eigen::Matrix4d& odoT)
 {
     if (camIdx >= m_camOdoThreads.size()) return;
     if (!m_camOdoThreads[camIdx] || m_camOdoThreads[camIdx]->running()) return;
