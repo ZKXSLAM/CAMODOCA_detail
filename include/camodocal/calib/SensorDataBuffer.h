@@ -8,7 +8,7 @@ namespace camodocal
 {
 
 template <class T>
-class SensorDataBuffer
+class SensorDataBuffer //传感器数据缓存器
 {
 public:
     explicit SensorDataBuffer(size_t size = 100);
@@ -33,8 +33,9 @@ private:
     {
         if (t2 > t1)
         {
-            uint64_t d = t2 - t1;
+            uint64_t d = t2 - t1; // 时间差
 
+            // numeric_limits<long int>::max () : 返回编译器允许的 long int 型数最大值
             if (d > std::numeric_limits<long int>::max())
             {
                 return std::numeric_limits<long int>::max();
@@ -273,8 +274,9 @@ SensorDataBuffer<T>::nearest(uint64_t timestamp, T& dataBefore, T& dataAfter)
     int mark = mIndex;
     do
     {
+        // 返回里程计时间戳-图像时间戳的时间差值
         long int tsDiff = timestampDiff(timestamp, mBuffer.at(mark).first);
-        if (tsDiff < 0)
+        if (tsDiff < 0) //说明图像时间戳在先
         {
             if (mark == mIndex)
             {
@@ -342,9 +344,8 @@ SensorDataBuffer<T>::push(uint64_t timestamp, const T& data)
     }
 }
 
-template <class T>
-bool
-SensorDataBuffer<T>::find(uint64_t timestamp, T& data)
+// 找到对应时间戳的数据
+template <class T> bool SensorDataBuffer<T>::find(uint64_t timestamp, T& data)
 {
     boost::mutex::scoped_lock lock(mGlobalMutex);
 

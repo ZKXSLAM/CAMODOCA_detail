@@ -191,7 +191,7 @@ CamOdoThread::threadFunction(void)
     TemporalFeatureTracker tracker(m_camera,
                                    SURF_GPU_DETECTOR, SURF_GPU_DESCRIPTOR,
                                    RATIO_GPU, m_preprocess, m_camOdoTransform);
-    tracker.setVerbose(m_camOdoCalib.getVerbose());
+    tracker.setVerbose(m_camOdoCalib.getVerbose()); //Verbose:日志显示
 
     FramePtr framePrev;
 
@@ -200,7 +200,7 @@ CamOdoThread::threadFunction(void)
 
     int trackBreaks = 0;
 
-    std::vector<OdometryPtr> odometryPoses;
+    std::vector<OdometryPtr> odometryPoses; // 里程计位姿
 
 #ifdef VCHARGE_VIZ
     std::ostringstream oss;
@@ -210,8 +210,9 @@ CamOdoThread::threadFunction(void)
 
     bool halt = false;
 
-    while (!halt)
+    while (!halt)  // 不暂停
     {
+        // boost::get_system_time():获取系统当前时间;boost::posix_time::microseconds() 换算为指定的时间段
         boost::system_time timeout = boost::get_system_time() + boost::posix_time::milliseconds(10);
         while (!m_image->timedWaitForData(timeout) && !m_stop)
         {
@@ -222,7 +223,7 @@ CamOdoThread::threadFunction(void)
         {
             std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > voPoses = tracker.getPoses();
 
-            if (odometryPoses.size() >= k_minVOSegmentSize)
+            if (odometryPoses.size() >= k_minVOSegmentSize) // 如果里程计位姿的维度大于等于最小VO分割尺度
             {
                 addCamOdoCalibData(voPoses, odometryPoses, tracker.getFrames());
             }
@@ -265,6 +266,7 @@ CamOdoThread::threadFunction(void)
             }
 
             // skip if current car position is too near previous position
+            // 如果当前车辆位置太接近上一个位置，则跳过
             OdometryPtr currOdometry;
             PosePtr currGpsIns;
             Eigen::Vector2d pos;
@@ -282,6 +284,7 @@ CamOdoThread::threadFunction(void)
                 m_odometryBufferMutex.lock();
 
                 OdometryPtr interpOdo;
+                // 如果位姿的来源是odometry，且没找到图像时间戳对应的里程计信息
                 if (m_poseSource == ODOMETRY && !m_interpOdometryBuffer.find(timeStamp, interpOdo))
                 {
                     double timeStart = timeInSeconds();
@@ -490,6 +493,7 @@ CamOdoThread::threadFunction(void)
 
         std::cout << "Rotation: " << std::endl << m_camOdoTransform.block<3,3>(0,0) << std::endl;
         std::cout << "Translation: " << std::endl << m_camOdoTransform.block<3,1>(0,3).transpose() << std::endl;
+
     }
 
     m_running = false;

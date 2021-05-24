@@ -5,8 +5,13 @@
 namespace camodocal
 {
 
-bool
-interpolateOdometry(SensorDataBuffer<OdometryPtr>& odometryBuffer,
+
+/*
+ * odometryBuffer : 里程计信息集合
+ * timestamp : 图像时间戳
+ * interpOdo : ?
+ */
+bool interpolateOdometry(SensorDataBuffer<OdometryPtr>& odometryBuffer,
                     uint64_t timestamp, OdometryPtr& interpOdo)
 {
     OdometryPtr prev, next;

@@ -29,8 +29,7 @@ namespace cv {
 #include "camodocal/calib/CamRigOdoCalibration.h"
 #include "camodocal/camera_models/CameraFactory.h"
 
-int
-main(int argc, char** argv)
+int main(int argc, char** argv)
 {
     using namespace camodocal;
     namespace fs = ::boost::filesystem;
@@ -563,6 +562,14 @@ main(int argc, char** argv)
 
         std::cout << "Translation: " << std::endl;
         std::cout << T.transpose() << std::endl << std::endl;
+
+        std::cout << "T is: " << std::endl;
+        std::cout << H.matrix()<< std::endl;
+
+        std::cout << "T^-1 is: " << std::endl;
+        std::cout << H.inverse().matrix() << std::endl;
+
+
     }
     inputThread.join();
 
