@@ -38,10 +38,12 @@ public:
     bool setReferenceCamera(int idx);
 
     // global camera pose is the transform from camera frame to system's reference frame
+    // 全局相机姿态是从相机帧到系统参考帧的变换 Tcb
     Eigen::Matrix4d getGlobalCameraPose(int idx) const;
     Eigen::Matrix4d getGlobalCameraPose(const CameraConstPtr& camera) const;
 
     // local camera pose is the transform from camera frame to reference camera frame
+    // 局部相机姿态是从相机帧到参考相机帧的变换
     Eigen::Matrix4d getLocalCameraPose(int idx) const;
     Eigen::Matrix4d getLocalCameraPose(const CameraConstPtr& camera) const;
 
@@ -51,10 +53,12 @@ public:
     bool setLocalCameraPose(const CameraConstPtr& camera, const Eigen::Matrix4d& pose);
 
     // pair index corresponds to the index of the right camera in the camera pair
+    // 索引对 对应于 相机对中 右侧相机的索引
     int leftCameraIdx(int cameraPairIdx) const;
     int rightCameraIdx(int cameraPairIdx) const;
 
     // relative transform is the transform from the left camera frame to the right camera frame
+    // 相对变换是从左相机帧到右相机帧的变换
     Eigen::Matrix4d relativeTransformBetweenCameraPair(int pairIdx) const;
     double translationScaleBetweenCameraPair(int pairIdx) const;
 

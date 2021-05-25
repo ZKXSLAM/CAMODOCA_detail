@@ -6,16 +6,6 @@
 
 #IncludeRegexTransform: 
 
-../include/camodocal/camera_models/Camera.h
-boost/shared_ptr.hpp
--
-Eigen/Eigen
--
-opencv2/core/core.hpp
--
-vector
--
-
 ../include/camodocal/sparse_graph/Odometry.h
 boost/shared_ptr.hpp
 -
@@ -42,10 +32,6 @@ camodocal/sparse_graph/Odometry.h
 camodocal/sparse_graph/Pose.h
 -
 
-../include/camodocal/sparse_graph/SparseGraphUtils.h
-camodocal/camera_models/Camera.h
--
-
 ../include/camodocal/sparse_graph/Transform.h
 boost/shared_ptr.hpp
 -
@@ -56,10 +42,6 @@ stdint.h
 
 /home/zoukaixiang/code/camodocal/src/sparse_graph/Odometry.cc
 camodocal/sparse_graph/Odometry.h
--
-
-/home/zoukaixiang/code/camodocal/src/sparse_graph/Pose.cc
-camodocal/sparse_graph/Pose.h
 -
 
 /home/zoukaixiang/code/camodocal/src/sparse_graph/SparseGraph.cc
@@ -80,14 +62,6 @@ iostream
 opencv2/highgui/highgui.hpp
 -
 sstream
--
-
-/home/zoukaixiang/code/camodocal/src/sparse_graph/SparseGraphUtils.cc
-camodocal/sparse_graph/SparseGraphUtils.h
--
-
-/home/zoukaixiang/code/camodocal/src/sparse_graph/Transform.cc
-camodocal/sparse_graph/Transform.h
 -
 
 /usr/local/include/eigen3/Eigen/Cholesky
@@ -381,10 +355,6 @@ Geometry
 /usr/local/include/eigen3/Eigen/Geometry
 Eigenvalues
 /usr/local/include/eigen3/Eigen/Eigenvalues
-
-/usr/local/include/eigen3/Eigen/Eigen
-Dense
-/usr/local/include/eigen3/Eigen/Dense
 
 /usr/local/include/eigen3/Eigen/Eigen2Support
 src/Core/util/DisableStupidWarnings.h

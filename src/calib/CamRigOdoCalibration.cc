@@ -70,29 +70,37 @@ CamRigOdoCalibration::~CamRigOdoCalibration()
 // 设置初始的相机里程计位姿估计
 void CamRigOdoCalibration::setInitialCameraOdoTransformEstimates(unsigned camIdx, const Eigen::Matrix4d& odoT)
 {
+    // 相机数量与相机里程计？？线程维度不一致，则返回
     if (camIdx >= m_camOdoThreads.size()) return;
+    // 与相机数量对应的线程关闭或正在运行，则返回
     if (!m_camOdoThreads[camIdx] || m_camOdoThreads[camIdx]->running()) return;
 
+    // 为该相机里程计线程设置相机里程计外参初始估计
     m_camOdoThreads[camIdx]->setCamOdoTransformEstimate(odoT);
 }
 
-void
-CamRigOdoCalibration::addFrame(int cameraId, const cv::Mat& image,
+// 添加图像
+/**
+ * @param cameraId   第几个相机
+ * @param image      根据图像地址读取的图像
+ * @param timestamp  时间戳
+ */
+void CamRigOdoCalibration::addFrame(int cameraId, const cv::Mat& image,
                                uint64_t timestamp)
 {
     AtomicData<cv::Mat>* frame = m_images.at(cameraId);
 
-    frame->lockData();
+    frame->lockData(); // 加锁---------------
 
-    image.copyTo(frame->data());
+    image.copyTo(frame->data()); // 将image图像复制给frame的data
 
-    frame->timeStamp() = timestamp;
+    frame->timeStamp() = timestamp; // 将image的时间戳复制给frame的时间戳
 
-    frame->unlockData();
+    frame->unlockData(); //解锁------------
 
     if (m_options.mode == OFFLINE)
     {
-        frame->waitForProcessingDone();
+        frame->waitForProcessingDone();  // ???
     }
 }
 
@@ -119,8 +127,8 @@ CamRigOdoCalibration::addFrameSet(const std::vector<cv::Mat>& images,
     }
 }
 
-void
-CamRigOdoCalibration::addOdometry(double x, double y, double z,
+// 添加odometry信息
+void CamRigOdoCalibration::addOdometry(double x, double y, double z,
                                   double yaw,
                                   uint64_t timestamp)
 {
@@ -140,6 +148,7 @@ CamRigOdoCalibration::addGpsIns(double lat, double lon, double alt,
                                 uint64_t timestamp)
 {
     // convert latitude/longitude to UTM coordinates
+    // 将纬度/经度转换为UTM坐标
      double utmX, utmY;
      std::string utmZone;
      LLtoUTM(lat, lon, utmX, utmY, utmZone);
@@ -164,17 +173,21 @@ CamRigOdoCalibration::addGpsIns(double lat, double lon, double alt,
     addGpsIns(lat, lon, alt, q.x(), q.y(), q.z(), q.w(), timestamp);
 }
 
-void
-CamRigOdoCalibration::start(void)
+// Rig:rigid 刚体
+// 相机刚体里程计标定
+void CamRigOdoCalibration::start(void)
 {
     if (m_options.beginStage == 0)
     {
+        // boost::asio提供了一个跨平台的异步编程IO模型库
+        // io_service类在多线程编程模型中提供了任务队列和任务分发功能
         boost::asio::io_service io;
         boost::asio::deadline_timer timer(io, boost::posix_time::milliseconds(100));
         bool closeWindow = false;
 
         for (size_t i = 0; i < m_cameras.size(); ++i)
         {
+            // 新建一个显示窗口，
             cv::namedWindow(m_cameras.at(i)->cameraName());
         }
 
@@ -236,7 +249,7 @@ CamRigOdoCalibration::start(void)
             std::cout << "Done. Took " << std::fixed << std::setprecision(2) << timeInSeconds() - tsStart << "s." << std::endl;
         }
     }
-    else
+    else //如果起始帧不是0
     {
         std::cout << "# INFO: Reading intermediate data... " << std::flush;
 
@@ -322,8 +335,8 @@ bool compareFrameTimeStamp(FramePtr f1, FramePtr f2)
     return (f1->cameraPose()->timeStamp() < f2->cameraPose()->timeStamp());
 }
 
-void
-CamRigOdoCalibration::buildGraph(void)
+
+void CamRigOdoCalibration::buildGraph(void)
 {
     boost::icl::interval_map<uint64_t, std::set<int> > intervals;
     std::vector<std::set<int> > cameraIdSets(m_camOdoThreads.size());
@@ -332,6 +345,7 @@ CamRigOdoCalibration::buildGraph(void)
     {
         CamOdoThread* camOdoThread = m_camOdoThreads.at(i);
 
+        // 将相机ID和相机模型对应起来？
         m_cameraSystem.setCamera(camOdoThread->cameraId(), m_cameras.at(camOdoThread->cameraId()));
         m_cameraSystem.setGlobalCameraPose(camOdoThread->cameraId(),
                                            camOdoThread->camOdoTransform());

@@ -16,14 +16,14 @@ public:
     Odometry();
 
     uint64_t& timeStamp(void);
-    uint64_t timeStamp(void) const;
+    uint64_t timeStamp(void) const; // const修饰this指向对象
     double& x(void);
     double x(void) const;
     double& y(void);
     double y(void) const;
     double& z(void);
     double z(void) const;
-    Eigen::Vector3d& position(void);
+    Eigen::Vector3d& position(void);    // 位置（平移）
     const Eigen::Vector3d& position(void) const;
     double* positionData(void);
     const double* const positionData(void) const;
@@ -33,7 +33,7 @@ public:
     double pitch(void) const;
     double& roll(void);
     double roll(void) const;
-    Eigen::Vector3d& attitude(void);
+    Eigen::Vector3d& attitude(void);    // 欧拉角
     const Eigen::Vector3d& attitude(void) const;
     double* attitudeData(void);
     const double* const attitudeData(void) const;

@@ -3,7 +3,6 @@
 
 #include <boost/asio.hpp>
 #include <boost/multi_array.hpp>
-
 #include "camodocal/calib/AtomicData.h"
 #include "camodocal/calib/PoseSource.h"
 #include "camodocal/calib/SensorDataBuffer.h"
@@ -44,22 +43,22 @@ public:
 
         Mode mode;
         PoseSource poseSource;
-        int nMotions;            // Once we reach a number of keyframes for each camera
-                                 // such that there are <nMotion> relative motions between
-                                 // consecutive keyframes, the calibration runs automatically.
+        int nMotions;            // Once we reach a number of keyframes for each camera such that there are <nMotion> relative
+                                 // motions between consecutive keyframes, the calibration runs automatically.
+                                 // 一旦我们获得每个摄影机的一定数量的关键帧，使得连续关键帧之间存在<nMotion>相对运动，校准将自动运行。
 
         // monocular VO
-        double minKeyframeDistance; // Minimum distance between consecutive keyframes.
+        double minKeyframeDistance; // Minimum distance between consecutive keyframes. 连续关键帧之间的最小距离。
                                     // (Recommended: 0.2 m)
         size_t minVOSegmentSize;    // The VO segment will be used in calibration only if the number of
                                     // keyframes in the VO segment exceeds <minVOSegmentSize>.
+                                    // 仅当VOsegment中的关键帧数超过<minVOSegmentSize>时，才会在校准中使用VOsegment。
 
-        // local matching between cameras
-        double windowDistance;   // The size of the window of frames in which local matching is
-                                 // performed between different cameras depends on the
-                                 // <windowDistance> distance that the vehicle travels
-                                 // from the beginning of the window to the end of the window.
+        // local matching between cameras 摄像机之间的局部匹配
+        double windowDistance;   // The size of the window of frames in which local matching is performed between different cameras depends on the
+                                 // <windowDistance> distance that the vehicle travels from the beginning of the window to the end of the window.
                                  // The larger the distance, the longer the local matching takes.
+                                 // 在不同相机之间执行局部匹配的帧窗口的大小取决于车辆从窗口的开始到窗口末端的<windowDistance>距离。距离越大，局部匹配所需时间越长。
 
         bool preprocessImages;
         bool saveWorkingData;
@@ -87,6 +86,7 @@ public:
                    uint64_t timestamp);
 
     //! If an initial odo transform estimate for a camera is specified there will be no automatic estimation step performed. (@note setup before start()!)
+    // 如果指定了相机的初始odo变换估计，则不会执行自动估计步骤(@开始前注意设置（）！）
     void setInitialCameraOdoTransformEstimates(unsigned camIdx, const Eigen::Matrix4d& odoT);
 
     void start(void);
@@ -104,14 +104,14 @@ private:
     void pollWindow(boost::asio::io_service* io, bool* stop);
     void displayHandler(boost::asio::deadline_timer* timer, bool* stop);
 
-    std::vector<CamOdoThread*> m_camOdoThreads;
+    std::vector<CamOdoThread*> m_camOdoThreads;   // 存储每个CamOdoThread线程指针的Vec
     CamOdoWatchdogThread* m_camOdoWatchdogThread;
 
     CameraSystem m_cameraSystem;
     SparseGraph m_graph;
 
     std::vector<AtomicData<cv::Mat>* > m_images;
-    std::vector<CameraPtr> m_cameras;
+    std::vector<CameraPtr> m_cameras;               // 存储多个相机指针的Vec
     SensorDataBuffer<OdometryPtr> m_odometryBuffer;
     SensorDataBuffer<OdometryPtr> m_interpOdometryBuffer;
     boost::mutex m_odometryBufferMutex;

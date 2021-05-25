@@ -507,8 +507,7 @@ CameraSystem::getCamera(int idx) const
     return m_cameras.at(idx);
 }
 
-bool
-CameraSystem::setCamera(int idx, CameraPtr& camera)
+bool CameraSystem::setCamera(int idx, CameraPtr& camera)
 {
     if (idx < 0 || idx >= m_cameraCount)
     {
