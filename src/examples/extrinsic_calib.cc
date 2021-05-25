@@ -562,7 +562,6 @@ int main(int argc, char** argv)
     cameraSystem.writeToDirectory(outputDir);
 
     std::cout << "# INFO: Wrote calibration data to " << outputDir << "." << std::endl;
-    cv::waitKey();
     std::cout << std::fixed << std::setprecision(5);
 
     /*std::cout << "# INFO: Current estimate (local):" << std::endl;
@@ -605,6 +604,15 @@ int main(int argc, char** argv)
 
         std::cout << "T^-1 is: " << std::endl;
         std::cout << H.inverse().matrix() << std::endl;
+
+        Eigen::Vector3d euler_angles = H.block<3,3>(0,0).eulerAngles(2,1,0);
+        std::cout << "euler_angles = " << euler_angles.x() << ", " <<  euler_angles.y() << ", " << euler_angles.z() << std::endl;
+
+        Eigen::Matrix3d truth_R;
+        truth_R << 0.99981397 ,-0.0088583408, -0.017136602, 0.0057699317, -0.710343, 0.70383203,-0.018407701, -0.70380002, -0.71015996;
+        Eigen::Vector3d euler_truth = truth_R.eulerAngles(2,1,0);
+        std::cout << "euler_angles_truth = " << euler_truth.x() << ", " <<  euler_truth.y() << ", " << euler_truth.z() << std::endl;
+
 
 
     }

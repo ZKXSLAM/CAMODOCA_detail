@@ -197,12 +197,20 @@ Camera::reprojectionError(const std::vector< std::vector<cv::Point3f> >& objectP
     return totalErr / pointsSoFar;
 }
 
-double
-Camera::reprojectionError(const Eigen::Vector3d& P,
+/**
+ * 重投影误差
+ * @param P           2D特征点对应的三维点
+ * @param camera_q    该帧相机位姿的旋转四元数
+ * @param camera_t    该帧相机位姿的平移
+ * @param observed_p  三维点的观察点（投影点？）
+ * @return            重投影误差（距离）
+ */
+double Camera::reprojectionError(const Eigen::Vector3d& P,
                           const Eigen::Quaterniond& camera_q,
                           const Eigen::Vector3d& camera_t,
                           const Eigen::Vector2d& observed_p) const
 {
+    // 三维点投影到相机坐标系
     Eigen::Vector3d P_cam = camera_q.toRotationMatrix() * P + camera_t;
 
     Eigen::Vector2d p;

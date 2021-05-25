@@ -54,8 +54,8 @@ Frame::odometryMeasurement(void) const
     return m_odometryMeasurement;
 }
 
-OdometryPtr&
-Frame::systemPose(void)
+// 该帧的里程计位姿
+OdometryPtr& Frame::systemPose(void)
 {
     return m_systemPose;
 }
@@ -78,8 +78,8 @@ Frame::gpsInsMeasurement(void) const
     return m_gpsInsMeasurement;
 }
 
-std::vector<Point2DFeaturePtr>&
-Frame::features2D(void)
+// 该帧的2D特征点指针的集合
+std::vector<Point2DFeaturePtr>& Frame::features2D(void)
 {
     return m_features2D;
 }
@@ -450,7 +450,7 @@ SparseGraph::frameSetSegment(int segmentId) const
 }
 
 std::vector<FrameSetSegment>&
-SparseGraph::frameSetSegments(void)
+SparseGraph::frameSetSegments(void) // 对帧的集合分批次集合的分批次集合的集合
 {
     return m_frameSetSegments;
 }

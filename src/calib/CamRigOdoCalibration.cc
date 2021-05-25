@@ -182,6 +182,7 @@ void CamRigOdoCalibration::start(void)
         // boost::asio提供了一个跨平台的异步编程IO模型库
         // io_service类在多线程编程模型中提供了任务队列和任务分发功能
         boost::asio::io_service io;
+        //定义一个100毫秒的计时器 ，这里指定的是绝对时间
         boost::asio::deadline_timer timer(io, boost::posix_time::milliseconds(100));
         bool closeWindow = false;
 
@@ -191,6 +192,7 @@ void CamRigOdoCalibration::start(void)
             cv::namedWindow(m_cameras.at(i)->cameraName());
         }
 
+        // timer.async_wait(handler); 计时时间一到，开始执行handler函数
         timer.async_wait(boost::bind(&CamRigOdoCalibration::displayHandler, this, &timer, &closeWindow));
 
         boost::thread windowThread(boost::bind(&CamRigOdoCalibration::pollWindow, this, &io, &closeWindow));
@@ -245,7 +247,7 @@ void CamRigOdoCalibration::start(void)
             boost::filesystem::path graphPath(m_options.dataDir);
             graphPath /= "frames_0.sg";
             m_graph.writeToBinaryFile(graphPath.string());
-
+            // INFO: Saving intermediate data... Done. Took 1.72s
             std::cout << "Done. Took " << std::fixed << std::setprecision(2) << timeInSeconds() - tsStart << "s." << std::endl;
         }
     }
@@ -284,7 +286,7 @@ void CamRigOdoCalibration::start(void)
 
     std::cout << "# INFO: Running camera rig calibration." << std::endl;
 
-    double tsStart = timeInSeconds();
+    double tsStart = timeInSeconds(); // 获取系统当前时间
 
     // run calibration steps
     CameraRigBA ba(m_cameraSystem, m_graph, m_options.windowDistance);
@@ -338,15 +340,19 @@ bool compareFrameTimeStamp(FramePtr f1, FramePtr f2)
 
 void CamRigOdoCalibration::buildGraph(void)
 {
-    boost::icl::interval_map<uint64_t, std::set<int> > intervals;
+    boost::icl::interval_map<uint64_t, std::set<int> > intervals;  // 时间范围对应一个相机集合
+    // m_camOdoThreads.size() : 1
     std::vector<std::set<int> > cameraIdSets(m_camOdoThreads.size());
 
-    for (size_t i = 0; i < m_camOdoThreads.size(); ++i)
+    cv::waitKey();
+
+    for (size_t i = 0; i < m_camOdoThreads.size(); ++i) // 对于每一个camodo线程
     {
         CamOdoThread* camOdoThread = m_camOdoThreads.at(i);
 
-        // 将相机ID和相机模型对应起来？
+        // 将camOdoThread的相机ID和m_cameras的相机id对应起来?
         m_cameraSystem.setCamera(camOdoThread->cameraId(), m_cameras.at(camOdoThread->cameraId()));
+        // 将camOdoThread的相机ID和m_globalPoses相机id对应的位姿对应起来?
         m_cameraSystem.setGlobalCameraPose(camOdoThread->cameraId(),
                                            camOdoThread->camOdoTransform());
 
@@ -354,9 +360,11 @@ void CamRigOdoCalibration::buildGraph(void)
 
         for (size_t j = 0; j < camOdoThread->frameSegments().size(); ++j)
         {
+            // 开始时间是camodo线程第j个图像分割的起始相机位姿的时间戳
             uint64_t start = camOdoThread->frameSegments().at(j).front()->cameraPose()->timeStamp();
             uint64_t end = camOdoThread->frameSegments().at(j).back()->cameraPose()->timeStamp();
 
+            // 时间范围对应一个相机ID
             intervals += std::make_pair(boost::icl::interval<uint64_t>::right_open(start, end),
                                         cameraIdSets[i]);
         }
@@ -368,8 +376,11 @@ void CamRigOdoCalibration::buildGraph(void)
     boost::icl::interval_map<uint64_t, std::set<int> >::iterator it = intervals.begin();
     while (it != intervals.end())
     {
+        // 时间间隔
         boost::icl::interval<uint64_t>::type interval = it->first;
+        // 相机id  // cameraIds : 0
         std::set<int> cameraIds = it->second;
+
 
         uint64_t start = interval.lower();
         uint64_t end = interval.upper();
@@ -472,8 +483,7 @@ CamRigOdoCalibration::pollWindow(boost::asio::io_service* io, bool* stop)
     }
 }
 
-void
-CamRigOdoCalibration::displayHandler(boost::asio::deadline_timer* timer, bool* stop)
+void CamRigOdoCalibration::displayHandler(boost::asio::deadline_timer* timer, bool* stop)
 {
     for (size_t i = 0; i < m_cameras.size(); ++i)
     {
@@ -483,7 +493,9 @@ CamRigOdoCalibration::displayHandler(boost::asio::deadline_timer* timer, bool* s
 
     if (!(*stop))
     {
+        // expires_at 延时函数
         timer->expires_at(timer->expires_at() + boost::posix_time::milliseconds(100));
+        // 计时时间一到，开始执行handler函数
         timer->async_wait(boost::bind(&CamRigOdoCalibration::displayHandler, this, timer, stop));
     }
 }

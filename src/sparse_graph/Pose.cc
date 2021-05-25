@@ -10,6 +10,7 @@ Pose::Pose()
     m_covariance.setZero();
 }
 
+// 包含变换矩阵和时间戳信息
 Pose::Pose(const Eigen::Matrix4d& H)
  : Transform(H)
  , m_timeStamp(0)

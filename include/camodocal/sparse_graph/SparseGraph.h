@@ -76,7 +76,7 @@ typedef boost::weak_ptr<Frame> FrameWPtr;
 typedef boost::shared_ptr<const Frame> FrameConstPtr;
 typedef boost::weak_ptr<const Frame> FrameConstWPtr;
 
-class Point2DFeature
+class Point2DFeature //2D特征点
 {
 public:
     Point2DFeature();

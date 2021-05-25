@@ -61,8 +61,14 @@ CameraRigBA::CameraRigBA(CameraSystem& cameraSystem,
 
 }
 
-void
-CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
+/**
+ *
+ * @param beginStage      开始的帧
+ * @param optimizeIntrinsics  是否标定内参
+ * @param saveWorkingData     是否保存工作数据
+ * @param dataDir         存放数据的目录？
+ */
+void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
                  bool saveWorkingData, std::string dataDir)
 {
     // stage 1 - triangulate 3D points with feature correspondences from mono VO and run BA
@@ -70,8 +76,13 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
     // stage 3 - find local inter-camera 3D-3D correspondences
     // stage 4 - run BA
     // stage 5 - run fish-eye plane sweep to find ground plane height
+    // 第1阶段-利用mono-VO和run-BA的特征对应对三维点进行三角剖分
+    // 第2阶段-运行鲁棒的位姿图SLAM，从回环中找到更inlier的2D-3D对应关系
+    // 第3阶段-查找局部相机间3D-3D对应关系
+    // 第4阶段-运行BA
+    // 第5阶段-运行鱼眼平面扫描以找到地平面高度
 
-    if (m_verbose)
+    if (m_verbose) // 默认为false
     {
         std::cout << "# INFO: # segments = " << m_graph.frameSetSegments().size() << std::endl;
         for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
@@ -114,8 +125,10 @@ CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
     // stage 1
     if (beginStage <= 1)
     {
+        // 对位于相机之后的点进行修剪
         prune(PRUNE_BEHIND_CAMERA, CAMERA);
 
+        // 如果要缓存？
         if (m_verbose)
         {
             double minError, maxError, avgError;
@@ -758,8 +771,18 @@ CameraRigBA::setVerbose(bool verbose)
     m_verbose = verbose;
 }
 
-void
-CameraRigBA::frameReprojectionError(const FramePtr& frame,
+/**
+ * 帧的重投影误差
+ * @param frame     图像帧
+ * @param camera    相机指针
+ * @param T_cam_odo 该帧该相机的世界坐标系下位姿
+ * @param minError  最小误差（等待赋值）
+ * @param maxError  最大误差（等待赋值）
+ * @param avgError  平均误差（等待赋值）
+ * @param featureCount  该帧的特征个数（等待赋值）
+ * @param type      类型（相机，odometry）
+ */
+void CameraRigBA::frameReprojectionError(const FramePtr& frame,
                                     const CameraConstPtr& camera,
                                     const Pose& T_cam_odo,
                                     double& minError, double& maxError, double& avgError,
@@ -769,14 +792,17 @@ CameraRigBA::frameReprojectionError(const FramePtr& frame,
     minError = std::numeric_limits<double>::max();
     maxError = std::numeric_limits<double>::min();
 
-    size_t count = 0;
-    double totalError = 0.0;
+    size_t count = 0;        // 误差个数
+    double totalError = 0.0; // 总误差
 
+    // 该帧的2D特征点
     const std::vector<Point2DFeaturePtr>& features2D = frame->features2D();
 
+    // 对于每个特征点
     for (size_t i = 0; i < features2D.size(); ++i)
     {
         const Point2DFeatureConstPtr& feature2D = features2D.at(i);
+        // 该特征点对应的三维点
         const Point3DFeatureConstPtr& feature3D = feature2D->feature3D();
 
         if (!feature3D)
@@ -784,6 +810,7 @@ CameraRigBA::frameReprojectionError(const FramePtr& frame,
             continue;
         }
 
+        // isnan::判断是不是非法数字
         if (std::isnan(feature3D->point()(0)) || std::isnan(feature3D->point()(1)) ||
             std::isnan(feature3D->point()(2)))
         {
@@ -854,8 +881,15 @@ CameraRigBA::frameReprojectionError(const FramePtr& frame,
     featureCount = count;
 }
 
-void
-CameraRigBA::reprojectionError(double& minError, double& maxError,
+/**
+ *  计算重投影误差
+ * @param minError 最小误差
+ * @param maxError 最大误差
+ * @param avgError 平均误差
+ * @param featureCount 特征数（误差总个数）
+ * @param type     类型（camera，odometry）
+ */
+void CameraRigBA::reprojectionError(double& minError, double& maxError,
                                double& avgError, size_t& featureCount,
                                int type) const
 {
@@ -868,19 +902,24 @@ CameraRigBA::reprojectionError(double& minError, double& maxError,
     std::vector<Pose> T_cam_odo(m_cameraSystem.cameraCount());
     for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
     {
+        // Tcw
         T_cam_odo[i] = m_cameraSystem.getGlobalCameraPose(i);
     }
 
     for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
     {
+        // 一批次的 一批次的frame集合 的集合
         const FrameSetSegment& segment = m_graph.frameSetSegment(i);
+
 
         for (size_t j = 0; j < segment.size(); ++j)
         {
+            // 一批次的frame集合（滑动窗口？）
             const FrameSetPtr& frameSet = segment.at(j);
 
             for (size_t k = 0; k < frameSet->frames().size(); ++k)
             {
+                // 对于每一帧
                 const FramePtr& frame = frameSet->frames().at(k);
 
                 if (!frame)
@@ -927,8 +966,18 @@ CameraRigBA::reprojectionError(double& minError, double& maxError,
     featureCount = count;
 }
 
-double
-CameraRigBA::reprojectionError(const CameraConstPtr& camera,
+/**
+ *
+ * @param camera  相机指针
+ * @param P       三维点
+ * @param cam_odo_q  该帧该相机的世界坐标系下位姿的旋转四元数
+ * @param cam_odo_t  该帧该相机的世界坐标系下位姿的平移
+ * @param odo_p      该帧的里程计位姿的平移
+ * @param odo_att    该帧的里程及位姿的欧拉角
+ * @param observed_p 2D特征点的坐标
+ * @return
+ */
+double CameraRigBA::reprojectionError(const CameraConstPtr& camera,
                                const Eigen::Vector3d& P,
                                const Eigen::Quaterniond& cam_odo_q,
                                const Eigen::Vector3d& cam_odo_t,
@@ -936,22 +985,33 @@ CameraRigBA::reprojectionError(const CameraConstPtr& camera,
                                const Eigen::Vector3d& odo_att,
                                const Eigen::Vector2d& observed_p) const
 {
+
+    /**
+     * 把欧拉角转换为四元数 [cos𝛾/2,0,0,-sin𝛾/2]^T * [cos𝛽/2,0,-sin𝛽/2,0]^T * [cos𝛼/2,-sin𝛼/2,0,0] = q
+     */
     Eigen::Quaterniond q_z_inv(cos(odo_att(0) / 2.0), 0.0, 0.0, -sin(odo_att(0) / 2.0));
     Eigen::Quaterniond q_y_inv(cos(odo_att(1) / 2.0), 0.0, -sin(odo_att(1) / 2.0), 0.0);
     Eigen::Quaterniond q_x_inv(cos(odo_att(2) / 2.0), -sin(odo_att(2) / 2.0), 0.0, 0.0);
 
     Eigen::Quaterniond q_world_odo = q_x_inv * q_y_inv * q_z_inv;
+
+    // .conjugate() 返回共轭。 四元数的共轭表示相反的旋转
+    // 将里程计的位姿旋转到相机坐标系 ？？
+    // 该帧相机位姿的旋转四元数
     Eigen::Quaterniond q_cam = cam_odo_q.conjugate() * q_world_odo;
 
+    ///???? 谁到谁的平移 - 谁到谁的平移
+    // 该帧相机位姿的平移
     Eigen::Vector3d t_cam = - q_cam.toRotationMatrix() * odo_p - cam_odo_q.conjugate().toRotationMatrix() * cam_odo_t;
 
     return camera->reprojectionError(P, q_cam, t_cam, observed_p);
 }
 
-void
-CameraRigBA::triangulateFeatureCorrespondences(void)
+// 三角话对应特征
+void CameraRigBA::triangulateFeatureCorrespondences(void)
 {
     // remove 3D scene points
+    // 删除三维场景点
     for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
     {
         FrameSetSegment& segment = m_graph.frameSetSegment(i);
@@ -962,6 +1022,7 @@ CameraRigBA::triangulateFeatureCorrespondences(void)
 
             for (size_t k = 0; k < frameSet->frames().size(); ++k)
             {
+                // 对于每帧图像
                 FramePtr& frame = frameSet->frames().at(k);
 
                 if (!frame)
@@ -969,12 +1030,15 @@ CameraRigBA::triangulateFeatureCorrespondences(void)
                     continue;
                 }
 
+                // 该帧的2D特征点指针的集合
                 std::vector<Point2DFeaturePtr>& features2D = frame->features2D();
 
                 for (size_t l = 0; l < features2D.size(); ++l)
                 {
+                    // 对于每一个二维特征点
                     Point2DFeaturePtr& pf = features2D.at(l);
 
+                    // 如果该二维特征点由对应的三维点，将三维点置空（为什么？？？）
                     if (pf->feature3D())
                     {
                         pf->feature3D() = Point3DFeaturePtr();
@@ -985,8 +1049,11 @@ CameraRigBA::triangulateFeatureCorrespondences(void)
     }
 
     // triangulate feature correspondences to get 3D scene points in odometry frame
+    // 在里程计帧中通过三角化对应特征得到三维场景点
+    // 对于每一个相机
     for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
     {
+        // 该相机的世界坐标系下位姿
         Pose T_cam_odo(m_cameraSystem.getGlobalCameraPose(i));
 
         for (size_t j = 0; j < m_graph.frameSetSegments().size(); ++j)
@@ -998,8 +1065,10 @@ CameraRigBA::triangulateFeatureCorrespondences(void)
 
             for (size_t k = 0; k < segment.size(); ++k)
             {
+                // 对于每一帧
                 FramePtr& frame = segment.at(k)->frames().at(i);
 
+                // 用frameSegments将每一帧存储起来
                 if (!frame)
                 {
                     frameSegments.resize(frameSegments.size() + 1);
@@ -1029,19 +1098,30 @@ CameraRigBA::triangulateFeatureCorrespondences(void)
     }
 }
 
-void
-CameraRigBA::triangulateFeatures(FramePtr& frame1, FramePtr& frame2,
+/**
+ * 三角化特征点
+ * @param frame1 上一帧
+ * @param frame2 当前帧
+ * @param camera 相机指针
+ * @param T_cam_odo  该相机的世界坐标系下位姿
+ */
+void CameraRigBA::triangulateFeatures(FramePtr& frame1, FramePtr& frame2,
                                  const CameraConstPtr& camera,
                                  const Pose& T_cam_odo)
 {
     // triangulate new feature correspondences seen in last 2 frames
+    // 对最近两帧中看到的新对应特征进行三角化
+
+    // 2d特征点指针的集合（对应）的集合
     std::vector<std::vector<Point2DFeaturePtr> > featureCorrespondences;
 
     // use features that are seen in both frames
+    // 使用在两个帧中都可以看到的特征
     find2D2DCorrespondences(frame2->features2D(), 2, featureCorrespondences);
 
     std::vector<cv::Point2f> ipoints[2];
 
+    // untri 想表达的意思是？？？
     std::vector<std::vector<Point2DFeaturePtr> > untriFeatureCorrespondences;
     for (size_t i = 0; i < featureCorrespondences.size(); ++i)
     {
@@ -1134,17 +1214,22 @@ CameraRigBA::triangulateFeatures(FramePtr& frame1, FramePtr& frame2,
     }
 }
 
-void
-CameraRigBA::find2D2DCorrespondences(const std::vector<Point2DFeaturePtr>& features,
+/**
+ * 找到两个帧中匹配的特征
+ * @param features 当前帧的特征点
+ * @param nViews   视图的数目(一般就是2)
+ * @param correspondences  对应特征点的集合
+ */
+void CameraRigBA::find2D2DCorrespondences(const std::vector<Point2DFeaturePtr>& features,
                                      int nViews,
                                      std::vector<std::vector<Point2DFeaturePtr> >& correspondences) const
 {
-    // find feature correspondences across n views starting backward from
-    // specified feature set in nth view
+    // find feature correspondences across n views starting backward from specified feature set in nth view
+    // 从第n个视图中指定的特征集向后开始，在n个视图中查找特征对应关系
     if (nViews < 2)
     {
         return;
-    }
+    }//nViews : 2
 
     correspondences.reserve(features.size());
 
@@ -1152,11 +1237,13 @@ CameraRigBA::find2D2DCorrespondences(const std::vector<Point2DFeaturePtr>& featu
     {
         std::vector<Point2DFeaturePtr> pt(nViews);
 
+        // 上一帧的特征
         pt[nViews - 1] = features.at(i);
         bool foundCorrespondences = true;
 
         for (int j = nViews - 1; j > 0; --j)
         {
+            //当前特征之前的匹配为空或者没有之前的最佳匹配，就没有找到匹配的特征，退出循环
             if (pt[j]->prevMatches().empty() || pt[j]->bestPrevMatchId() == -1)
             {
                 foundCorrespondences = false;
@@ -1709,10 +1796,12 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
     }
 }
 
-void
-CameraRigBA::prune(int flags, int poseType)
+// 修剪
+void CameraRigBA::prune(int flags, int poseType)
 {
+    // 相机位姿矩阵(Twc)
     std::vector<Pose, Eigen::aligned_allocator<Pose> > T_cam_odo(m_cameraSystem.cameraCount());
+    // 外参位姿矩阵 H(Tcw)
     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > H_odo_cam(m_cameraSystem.cameraCount());
     for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
     {
@@ -1722,16 +1811,23 @@ CameraRigBA::prune(int flags, int poseType)
     }
 
     // prune points that are too far away or behind a camera
+    // 修剪太远或在相机后面的点
+    // m_graph.frameSetSegments().size() : 5
+
+    // frameSetSegments(): 对帧的集合分批次集合的分批次集合的集合(批次的条件是什么？)
     for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
     {
         FrameSetSegment& segment = m_graph.frameSetSegment(i);
 
+        // segment.size() : 46
+        // segment.size() : 124
         for (size_t j = 0; j < segment.size(); ++j)
         {
             FrameSetPtr& frameSet = segment.at(j);
 
             for (size_t k = 0; k < frameSet->frames().size(); ++k)
             {
+                // 获取每一帧
                 FramePtr& frame = frameSet->frames().at(k);
 
                 if (!frame)
@@ -1739,45 +1835,56 @@ CameraRigBA::prune(int flags, int poseType)
                     continue;
                 }
 
+                // 当前帧的相机ID
                 int cameraId = frame->cameraId();
 
+                // 2d特征点(的匹配？)集合
                 std::vector<Point2DFeaturePtr>& features2D = frame->features2D();
 
+                // 相机位姿
                 Eigen::Matrix4d H_cam = Eigen::Matrix4d::Identity();
                 if (poseType == CAMERA)
                 {
+                    // 该帧的相机位姿
                     H_cam = frame->cameraPose()->toMatrix();
                 }
                 else
                 {
+                    // 相机位姿 = 外参位姿矩阵Tcw * 该帧里程计的位姿^-1  ？？？
                     H_cam = H_odo_cam.at(cameraId) * frame->systemPose()->toMatrix().inverse();
                 }
 
+                // 遍历2d特征点
                 for (size_t l = 0; l < features2D.size(); ++l)
                 {
                     Point2DFeaturePtr& pf = features2D.at(l);
 
+                    // 如果该特征点没有对应的三维点，则跳过
                     if (!pf->feature3D())
                     {
                         continue;
                     }
 
+                    // 2D特征点对应的三维点通过相机位姿矩阵转换到相机坐标系下
                     Eigen::Vector3d P_cam = transformPoint(H_cam, pf->feature3D()->point());
 
                     bool prune = false;
 
+                    // 去掉相机后的点
                     if ((flags & PRUNE_BEHIND_CAMERA) &&
                         P_cam(2) < 0.0)
                     {
                         prune = true;
                     }
 
+                    // 去掉太远的点
                     if ((flags & PRUNE_FARAWAY) &&
                         P_cam.block<3,1>(0,0).norm() > k_maxPoint3DDistance)
                     {
                         prune = true;
                     }
 
+                    // 去掉高重投影误差的点
                     if (flags & PRUNE_HIGH_REPROJ_ERR)
                     {
                         double error = 0.0;
@@ -1809,12 +1916,14 @@ CameraRigBA::prune(int flags, int poseType)
                     if (prune)
                     {
                         // delete entire feature track
+                        // 二维特征点对应的三维特征点的所有匹配的2D点
                         std::vector<Point2DFeatureWPtr> features2D = pf->feature3D()->features2D();
 
                         for (size_t m = 0; m < features2D.size(); ++m)
                         {
                             if (Point2DFeaturePtr feature2D = features2D.at(m).lock())
                             {
+                                // 置空？
                                 feature2D->feature3D() = Point3DFeaturePtr();
                             }
                         }

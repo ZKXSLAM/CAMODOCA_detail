@@ -17,7 +17,7 @@ public:
     uint64_t& timeStamp(void);
     uint64_t timeStamp(void) const;
 
-    Eigen::Matrix<double,7,7>& covariance(void);
+    Eigen::Matrix<double,7,7>& covariance(void); // 协方差
     const Eigen::Matrix<double,7,7>& covariance(void) const;
     double* covarianceData(void);
     const double* const covarianceData(void) const;

@@ -16,7 +16,7 @@ public:
     {
         KANNALA_BRANDT, // 适合普通，广角和鱼眼
         MEI,
-        PINHOLE,       // 针孔相机
+        PINHOLE,        // 针孔相机
         SCARAMUZZA
     };
 
@@ -67,20 +67,23 @@ public:
                                     cv::Mat& rvec, cv::Mat& tvec) const;
 
     // Lift points from the image plane to the sphere
+    // 将点从图像平面提升到球体
     virtual void liftSphere(const Eigen::Vector2d& p, Eigen::Vector3d& P) const = 0;
     //%output P
 
     // Lift points from the image plane to the projective space
+    // 将点从图像平面提升到射影空间
     virtual void liftProjective(const Eigen::Vector2d& p, Eigen::Vector3d& P) const = 0;
     //%output P
 
     // Projects 3D points to the image plane (Pi function)
+    // 将三维点投影到图像平面（Pi函数）
     virtual void spaceToPlane(const Eigen::Vector3d& P, Eigen::Vector2d& p) const = 0;
     //%output p
 
     // Projects 3D points to the image plane (Pi function)
     // and calculates jacobian
-    //virtual void spaceToPlane(const Eigen::Vector3d& P, Eigen::Vector2d& p,
+    // virtual void spaceToPlane(const Eigen::Vector3d& P, Eigen::Vector2d& p,
     //                          Eigen::Matrix<double,2,3>& J) const = 0;
     //%output p
     //%output J
@@ -105,11 +108,11 @@ public:
     virtual std::string parametersToString(void) const = 0;
 
     /**
-     * \brief Calculates the reprojection distance between points
+     * \brief Calculates the reprojection distance between points 计算点之间的重投影距离
      *
      * \param P1 first 3D point coordinates
      * \param P2 second 3D point coordinates
-     * \return euclidean distance in the plane
+     * \return euclidean distance in the plane  平面上的欧氏距离
      */
     double reprojectionDist(const Eigen::Vector3d& P1, const Eigen::Vector3d& P2) const;
 

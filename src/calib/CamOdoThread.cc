@@ -489,6 +489,7 @@ CamOdoThread::threadFunction(void)
         if (m_camOdoTransformUseEstimate)
             std::cout << "# INFO: Use provided odometry estimate for camera " << m_cameraId << "..." << std::endl;
         else
+            // # INFO: Calibrating odometry - camera 0...
             std::cout << "# INFO: Calibrating odometry - camera " << m_cameraId << "..." << std::endl;
 
         std::cout << "Rotation: " << std::endl << m_camOdoTransform.block<3,3>(0,0) << std::endl;
