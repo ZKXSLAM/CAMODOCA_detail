@@ -218,6 +218,7 @@ void CamRigOdoCalibration::start(void)
 
         for (size_t i = 0; i < m_cameras.size(); ++i)
         {
+            // debuging ...
             cv::destroyWindow(m_cameras.at(i)->cameraName());
         }
 
@@ -340,31 +341,30 @@ bool compareFrameTimeStamp(FramePtr f1, FramePtr f2)
     return (f1->cameraPose()->timeStamp() < f2->cameraPose()->timeStamp());
 }
 
-
+// 建立spase maps
 void CamRigOdoCalibration::buildGraph(void)
 {
     boost::icl::interval_map<uint64_t, std::set<int> > intervals;  // 时间范围对应一个相机集合
     // m_camOdoThreads.size() : 1
     std::vector<std::set<int> > cameraIdSets(m_camOdoThreads.size());
 
-    cv::waitKey();
-
     for (size_t i = 0; i < m_camOdoThreads.size(); ++i) // 对于每一个camodo线程
     {
         CamOdoThread* camOdoThread = m_camOdoThreads.at(i);
 
-        // 将m_camOdoThread的相机ID和m_cameras的相机id对应起来?
+        // 将m_camOdoThread的相机ID和m_cameras的相机id对应起来 // camOdoThread用于计算cam-odo-transform // m_cameras 存储相机模型
         m_cameraSystem.setCamera(camOdoThread->cameraId(), m_cameras.at(camOdoThread->cameraId()));
         // 将m_camOdoThread的相机ID和m_globalPoses相机id对应的位姿对应起来
         m_cameraSystem.setGlobalCameraPose(camOdoThread->cameraId(),
                                            camOdoThread->camOdoTransform());
 
-        cameraIdSets[i].insert(camOdoThread->cameraId());
+        cameraIdSets[i].insert(camOdoThread->cameraId());  // 存放相机的编号
 
         for (size_t j = 0; j < camOdoThread->frameSegments().size(); ++j)
         {
-            // 开始时间是camodo线程第j个图像分割的起始相机位姿的时间戳
+            // 开始时间是camodo线程第j个frameSegments 的起始相机位姿的时间戳
             uint64_t start = camOdoThread->frameSegments().at(j).front()->cameraPose()->timeStamp();
+            // 开始时间是camodo线程第j个frameSegments 的最后一个相机位姿的时间戳
             uint64_t end = camOdoThread->frameSegments().at(j).back()->cameraPose()->timeStamp();
 
             // 时间范围对应一个相机ID

@@ -18,12 +18,14 @@
 
 namespace camodocal
 {
-
-CamOdoThread::CamOdoThread(PoseSource poseSource, int nMotions, int cameraId,
-                           bool preprocess,
+//cam-odo-transform 计算线程
+CamOdoThread::CamOdoThread(PoseSource poseSource,   // PoseSource::GPS_INS : PoseSource::ODOMETRY; 位姿来源
+                           int nMotions,    // 关键帧数目
+                           int cameraId,    // 第几个相机
+                           bool preprocess, // 是否（有？）预处理图片
                            AtomicData<cv::Mat>* image,
-                           const CameraConstPtr& camera,
-                           SensorDataBuffer<OdometryPtr>& odometryBuffer,
+                           const CameraConstPtr& camera,   // 相机指针
+                           SensorDataBuffer<OdometryPtr>& odometryBuffer,  //里程计数据缓存器
                            SensorDataBuffer<OdometryPtr>& interpOdometryBuffer,
                            boost::mutex& odometryBufferMutex,
                            SensorDataBuffer<PosePtr>& gpsInsBuffer,
@@ -32,11 +34,11 @@ CamOdoThread::CamOdoThread(PoseSource poseSource, int nMotions, int cameraId,
                            cv::Mat& sketch,
                            bool& completed,
                            bool& stop,
-                           double minKeyframeDistance,
-                           size_t minVOSegmentSize,
+                           double minKeyframeDistance,     // 最小关键帧距离
+                           size_t minVOSegmentSize,        // 最小VO segmen大小
                            bool verbose)
- : m_poseSource(poseSource)
- , m_cameraId(cameraId)
+ : m_poseSource(poseSource)     // PoseSource::GPS_INS : PoseSource::ODOMETRY; 位姿来源
+ , m_cameraId(cameraId)  // 第几个相机
  , m_preprocess(preprocess)
  , m_running(false)
  , m_image(image)
@@ -90,8 +92,7 @@ CamOdoThread::camOdoTransform(void) const
     return m_camOdoTransform;
 }
 
-const std::vector<std::vector<FramePtr> >&
-CamOdoThread::frameSegments(void) const
+const std::vector<std::vector<FramePtr> >& CamOdoThread::frameSegments(void) const
 {
     return m_frameSegments;
 }

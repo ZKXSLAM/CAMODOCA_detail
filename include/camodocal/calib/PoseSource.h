@@ -4,7 +4,7 @@
 namespace camodocal
 {
 
-enum PoseSource
+enum PoseSource //位姿来源
 {
     GPS_INS,
     ODOMETRY

@@ -76,7 +76,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
     // stage 3 - find local inter-camera 3D-3D correspondences
     // stage 4 - run BA
     // stage 5 - run fish-eye plane sweep to find ground plane height
-    // 第1阶段-利用mono-VO和run-BA的特征对应对三维点进行三角剖分
+    // 第1阶段-利用mono-VO和run-BA的特征对应对三维点进行三角化
     // 第2阶段-运行鲁棒的位姿图SLAM，从回环中找到更inlier的2D-3D对应关系
     // 第3阶段-查找局部相机间3D-3D对应关系
     // 第4阶段-运行BA
@@ -128,7 +128,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
 #endif
 
-    // stage 1
+    // stage 1 利用mono-VO和run-BA的特征对应对三维点进行三角化
     if (beginStage <= 1)
     {
         // 对位于相机之后的点进行修剪
@@ -140,6 +140,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             double minError, maxError, avgError;
             size_t featureCount;
 
+            // // 计算重投影误差的最大最小平均误差，以及特征的数量
             reprojectionError(minError, maxError, avgError, featureCount, CAMERA);
 
             // Reprojection error: avg = 0.30 px | max = 11.58 px | # obs = 90539
@@ -157,6 +158,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             double minError, maxError, avgError;
             size_t featureCount;
 
+            // 计算重投影误差的最大最小平均误差，以及特征的数量
             reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
 
             // Reprojection error for camera 0: avg = 0.30215 px | max = 11.5753 px
@@ -928,7 +930,7 @@ void CameraRigBA::reprojectionError(double& minError, double& maxError,
 
         for (size_t j = 0; j < segment.size(); ++j)
         {
-            // 一批次的frame集合（滑动窗口？）
+            // 一批次的frame集合？？
             const FrameSetPtr& frameSet = segment.at(j);
 
             for (size_t k = 0; k < frameSet->frames().size(); ++k)
@@ -984,8 +986,8 @@ void CameraRigBA::reprojectionError(double& minError, double& maxError,
  *
  * @param camera  相机指针
  * @param P       三维点
- * @param cam_odo_q  该帧在相机坐标系下里程计的旋转
- * @param cam_odo_t  该帧在相机坐标系下里程计的平移
+ * @param cam_odo_q  里程计到相机坐标系的旋转(Roc)
+ * @param cam_odo_t  里程计到相机坐标系的平移（toc）
  * @param odo_p      该帧的里程计位姿在世界坐标系下的平移
  * @param odo_att    该帧的里程及位姿在世界坐标系下的欧拉角
  * @param observed_p 2D特征点的坐标
@@ -1009,10 +1011,10 @@ double CameraRigBA::reprojectionError(const CameraConstPtr& camera,
     Eigen::Quaterniond q_world_odo = q_x_inv * q_y_inv * q_z_inv;
 
     // .conjugate() 返回共轭。 四元数的共轭表示相反的旋转
-    // 该帧相机位姿的旋转四元数 Rcw = Rco * Row (与高翔的世界坐标系下位姿的写法相反)
+    // 该帧界坐标系下相机的旋转四元数 Rcw = Rco * Row (与高翔的世界坐标系下位姿的写法相反)
     Eigen::Quaterniond q_cam = cam_odo_q.conjugate() * q_world_odo;
 
-    // 该帧相机位姿的平移 tcw = -Rcw * two - Rco * toc
+    // 该帧世界坐标系下相机的平移 tcw = -Rwc * two - Rco * toc
     Eigen::Vector3d t_cam = - q_cam.toRotationMatrix() * odo_p - cam_odo_q.conjugate().toRotationMatrix() * cam_odo_t;
 
     return camera->reprojectionError(P, q_cam, t_cam, observed_p);
@@ -1984,9 +1986,21 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
             {
                 FrameSetPtr frameSet = segment.at(j);
 
-  std::cout << "frameSet->odometryMeasurement()->toMatrix() : " << std::endl<< frameSet->odometryMeasurement()->toMatrix()<< std::endl;
-  std::cout << "frameSet->odometryMeasurement()->toMatrix().inverse() : " << std::endl<< frameSet->odometryMeasurement()->toMatrix().inverse()<< std::endl;
-  std::cout << "frameSetPrev->odometryMeasurement()->toMatrix() : " << std::endl<< frameSetPrev->odometryMeasurement()->toMatrix()<< std::endl;
+                // frameSet->odometryMeasurement()->toMatrix() :
+                //  0.49  -0.87   0.00 -25.67
+                //  0.87   0.49   0.00 158.00
+                //  0.00   0.00   1.00   0.00
+                //  0.00   0.00   0.00   1.00
+                //frameSet->odometryMeasurement()->toMatrix().inverse() :
+                //   0.49    0.87    0.00 -124.88
+                //  -0.87    0.49   -0.00 -100.13
+                //   0.00    0.00    1.00   -0.00
+                //  -0.00    0.00   -0.00    1.00
+                //frameSetPrev->odometryMeasurement()->toMatrix() :
+                //  0.49  -0.87   0.00 -25.79
+                //  0.87   0.49   0.00 157.78
+                //  0.00   0.00   1.00   0.00
+                //  0.00   0.00   0.00   1.00
                 Eigen::Matrix4d H_odo_meas = frameSet->odometryMeasurement()->toMatrix().inverse() *
                                              frameSetPrev->odometryMeasurement()->toMatrix();
 

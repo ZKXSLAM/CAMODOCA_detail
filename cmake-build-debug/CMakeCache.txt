@@ -403,7 +403,7 @@ CUDA_BUILD_EMULATION:BOOL=OFF
 CUDA_CUDART_LIBRARY:FILEPATH=CUDA_CUDART_LIBRARY-NOTFOUND
 
 //"cuda" library (older versions only).
-CUDA_CUDA_LIBRARY:FILEPATH=CUDA_CUDA_LIBRARY-NOTFOUND
+CUDA_CUDA_LIBRARY:FILEPATH=/usr/lib/x86_64-linux-gnu/libcuda.so
 
 //Directory to put all the output files.  If blank it will default
 // to the CMAKE_CURRENT_BINARY_DIR

@@ -42,7 +42,7 @@ public:
          , verbose(false) {};
 
         Mode mode;
-        PoseSource poseSource;
+        PoseSource poseSource;   // PoseSource::GPS_INS : PoseSource::ODOMETRY;  位姿来源
         int nMotions;            // Once we reach a number of keyframes for each camera such that there are <nMotion> relative
                                  // motions between consecutive keyframes, the calibration runs automatically.
                                  // 一旦我们获得每个摄影机的一定数量的关键帧，使得连续关键帧之间存在<nMotion>相对运动，校准将自动运行。
@@ -61,11 +61,11 @@ public:
                                  // 在不同相机之间执行局部匹配的帧窗口的大小取决于车辆从窗口的开始到窗口末端的<windowDistance>距离。距离越大，局部匹配所需时间越长。
 
         bool preprocessImages;
-        bool saveWorkingData;
-        int beginStage;
-        bool optimizeIntrinsics;
-        std::string dataDir;
-        bool verbose;
+        bool saveWorkingData;  // 是否保存数据
+        int beginStage;        // 开始阶段（帧）
+        bool optimizeIntrinsics;  // 是否优化内参
+        std::string dataDir;   // 保存工作数据的地址 （/data）
+        bool verbose;          // 缓存,显示额外信息
     };
 
     CamRigOdoCalibration(std::vector<CameraPtr>& cameras,

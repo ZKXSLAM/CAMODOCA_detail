@@ -42,6 +42,7 @@ void SignalHandler(const char* data, int size) {
 
 int main(int argc, char** argv)
 {
+    // 记录log用
     google::InitGoogleLogging(argv[0]);
     google::InstallFailureSignalHandler();
     google::InstallFailureWriter(&SignalHandler);
@@ -54,16 +55,16 @@ int main(int argc, char** argv)
 
     std::string calibDir;         // calib文件目录
     std::string odoEstimateFile;  // 里程计估计文件
-    int cameraCount;              // 相机计数
+    int cameraCount;              // 有几个相机
     float focal;                  // 焦距
     std::string outputDir;        // 输出文件目录
-    int nMotions;
+    int nMotions;                 // 关键帧数目
     int beginStage;               // 开始阶段
-    bool preprocessImages;
+    bool preprocessImages;        // 是否（有？）预处理图像
     bool optimizeIntrinsics;      // 是否优化内参
-    std::string dataDir;          // 数据地址
-    bool verbose;                 // 是否缓冲？(获取更多的运行信息)
-    std::string inputDir;         // 输入文件
+    std::string dataDir;          // 保存工作数据的地址 （/data）
+    bool verbose;                 // 是否缓冲(获取更多的运行信息)
+    std::string inputDir;         // 输入文件 (/extract)
     float refCameraGroundHeight;  // 相对相机真实高度
     float keyframeDistance;       // 关键帧之间的距离
     std::string eventFile;        // 与IMU和GPS有关的信息文件
@@ -360,15 +361,15 @@ int main(int argc, char** argv)
     CamRigOdoCalibration::Options options;
   //options.mode = CamRigOdoCalibration::ONLINE;
     options.poseSource = bUseGPS ? PoseSource::GPS_INS : PoseSource::ODOMETRY;      //位姿来源
-    options.nMotions = nMotions;                                   // 相对运动数量
-    options.minKeyframeDistance = keyframeDistance;                // 仅当VOsegment中的关键帧数超过<minVOSegmentSize>时，才会在校准中使用VOsegment
-    options.minVOSegmentSize = 15;                                 // 最小VO划分
-    options.preprocessImages = preprocessImages;                   // 预处理图像的个数
-    options.optimizeIntrinsics = optimizeIntrinsics;               // 优化内参
+    options.nMotions = nMotions;                                   // 关键帧数目
+    options.minKeyframeDistance = keyframeDistance;                // 连续关键帧之间的最小距离
+    options.minVOSegmentSize = 15;                                 // 仅当VOsegment中的关键帧数超过<minVOSegmentSize>时，才会在校准中使用VOsegment
+    options.preprocessImages = preprocessImages;                   // 是否（有）预处理图像
+    options.optimizeIntrinsics = optimizeIntrinsics;               // 是否优化内参
     options.saveWorkingData = true;                                // 是否保存数据
-    options.beginStage = beginStage;                               // 开始阶段（帧？）
-    options.dataDir = dataDir;                                     // 数据目录（input目录？）
-    options.verbose = verbose;                                     // 缓存？
+    options.beginStage = beginStage;                               // 开始阶段（帧）
+    options.dataDir = dataDir;                                     // 保存工作数据的地址 （/data）
+    options.verbose = verbose;                                     // 缓存,显示额外信息
 
     CamRigOdoCalibration camRigOdoCalib(cameras, options);
 

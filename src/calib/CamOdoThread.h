@@ -24,11 +24,13 @@ class CamOdoThread
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    CamOdoThread(PoseSource poseSource, int nMotions, int cameraId,
-                 bool preprocess,
+    CamOdoThread(PoseSource poseSource,  // PoseSource::GPS_INS : PoseSource::ODOMETRY; 位姿来源
+                 int nMotions,           // 关键帧数目
+                 int cameraId,           // 第几个相机
+                 bool preprocess,        // 是否（有？）预处理图片
                  AtomicData<cv::Mat>* image,
-                 const CameraConstPtr& camera,
-                 SensorDataBuffer<OdometryPtr>& odometryBuffer,
+                 const CameraConstPtr& camera,  // 相机指针
+                 SensorDataBuffer<OdometryPtr>& odometryBuffer,  //里程计数据缓存器
                  SensorDataBuffer<OdometryPtr>& interpOdometryBuffer,
                  boost::mutex& odometryBufferMutex,
                  SensorDataBuffer<PosePtr>& gpsInsBuffer,
@@ -37,8 +39,8 @@ public:
                  cv::Mat& sketch,
                  bool& completed,
                  bool& stop,
-                 double minKeyframeDistance,
-                 size_t minVOSegmentSize,
+                 double minKeyframeDistance,    // 最小关键帧距离
+                 size_t minVOSegmentSize,       // 最小VO segmen大小
                  bool verbose = false);
     virtual ~CamOdoThread();
 
@@ -70,7 +72,7 @@ private:
     PoseSource m_poseSource;
 
     boost::shared_ptr<boost::thread> m_thread;
-    int m_cameraId;
+    int m_cameraId;  // 第几个相机
     bool m_preprocess;
     volatile bool m_running; // poor man's synchronisation
     boost::signals2::signal<void ()> m_signalFinished;
