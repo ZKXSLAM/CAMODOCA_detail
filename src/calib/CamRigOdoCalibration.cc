@@ -252,44 +252,14 @@ void CamRigOdoCalibration::start(void)
             std::cout << "Done. Took " << std::fixed << std::setprecision(2) << timeInSeconds() - tsStart << "s." << std::endl;
         }
     }
-    else //如果起始帧不是0
-    {
-        std::cout << "# INFO: Reading intermediate data... " << std::flush;
-
-        std::ostringstream oss;
-        oss << "extrinsic_" << m_options.beginStage - 1;
-
-        boost::filesystem::path extrinsicPath(m_options.dataDir);
-        extrinsicPath /= oss.str();
-
-        oss.str(""); oss.clear();
-        oss << "frames_" << m_options.beginStage - 1 << ".sg";
-
-        boost::filesystem::path graphPath(m_options.dataDir);
-        graphPath /= oss.str();
-
-        double tsStart = timeInSeconds();
-
-        if (!m_cameraSystem.readFromDirectory(extrinsicPath.string()))
-        {
-            std::cout << "# ERROR: Working data in directory " << extrinsicPath.string() << " is missing." << std::endl;
-            exit(1);
-        }
-
-        if (!m_graph.readFromBinaryFile(graphPath.string()))
-        {
-            std::cout << "# ERROR: Working data in file " << graphPath.string() << " is missing." << std::endl;
-            exit(1);
-        }
-
-        std::cout << "Done. Took " << std::fixed << std::setprecision(2) << timeInSeconds() - tsStart << "s." << std::endl;
-    }
 
     std::cout << "# INFO: Running camera rig calibration." << std::endl;
 
     double tsStart = timeInSeconds(); // 获取系统当前时间
 
     // run calibration steps
+    // m_graph.frameSetSegments().size() : 1
+    // m_options.windowDistance : 3
     CameraRigBA ba(m_cameraSystem, m_graph, m_options.windowDistance);
     ba.setVerbose(m_options.verbose);
 
@@ -298,7 +268,6 @@ void CamRigOdoCalibration::start(void)
     ba.run(m_options.beginStage, m_options.optimizeIntrinsics, m_options.saveWorkingData, m_options.dataDir);
 
     std::cout << "# INFO: Camera rig calibration took " << timeInSeconds() - tsStart << "s." << std::endl;
-
     std::cout << "# INFO: Completed camera rig calibration." << std::endl;
 
     m_running = false;
@@ -341,10 +310,10 @@ bool compareFrameTimeStamp(FramePtr f1, FramePtr f2)
     return (f1->cameraPose()->timeStamp() < f2->cameraPose()->timeStamp());
 }
 
-// 建立spase maps
+// 建立spase maps ，对于论文每个相机会产生m个spase maps；
 void CamRigOdoCalibration::buildGraph(void)
 {
-    boost::icl::interval_map<uint64_t, std::set<int> > intervals;  // 时间范围对应一个相机集合
+    boost::icl::interval_map<uint64_t, std::set<int> > intervals;  // 每个frameSegments时间范围对应一个相机集合
     // m_camOdoThreads.size() : 1
     std::vector<std::set<int> > cameraIdSets(m_camOdoThreads.size());
 
@@ -358,7 +327,7 @@ void CamRigOdoCalibration::buildGraph(void)
         m_cameraSystem.setGlobalCameraPose(camOdoThread->cameraId(),
                                            camOdoThread->camOdoTransform());
 
-        cameraIdSets[i].insert(camOdoThread->cameraId());  // 存放相机的编号
+        cameraIdSets[i].insert(camOdoThread->cameraId());  // 存放相机的编号 （相机编号set存相机编号？）
 
         for (size_t j = 0; j < camOdoThread->frameSegments().size(); ++j)
         {
@@ -384,42 +353,50 @@ void CamRigOdoCalibration::buildGraph(void)
         // 相机id  // cameraIds : 0
         std::set<int> cameraIds = it->second;
 
-
-        uint64_t start = interval.lower();
+        //start : 1620458322569145
+        //end : 1620458407405891
+        uint64_t start = interval.lower(); // 图片起始时间戳
         uint64_t end = interval.upper();
 
         if (start != lastIntervalEnd)
         {
+            // frameSetSegments 增加一个
             m_graph.frameSetSegments().resize(m_graph.frameSetSegments().size() + 1);
         }
 
-        std::vector<FramePtr> frames;
+        std::vector<FramePtr> frames;     //帧指针的集合
 
         std::set<int>::iterator itCameraId = cameraIds.begin();
 
+        // 遍历每个相机
         while (itCameraId != cameraIds.end())
         {
             int cameraId = *itCameraId;
 
+            // 每个cam-odom-thread
             CamOdoThread* camOdoThread = m_camOdoThreads.at(cameraId);
 
+            // 对于每个frameSegments
             for (size_t j = 0; j < camOdoThread->frameSegments().size(); ++j)
             {
+                // 对于每个frameSegment
                 const std::vector<FramePtr>& frameSegment = camOdoThread->frameSegments().at(j);
 
                 for (size_t k = 0; k < frameSegment.size(); ++k)
                 {
+                    // 对于每个frame
                     const FramePtr& frame = frameSegment.at(k);
 
+                    // 每一帧的时间戳
                     uint64_t timestamp = frame->cameraPose()->timeStamp();
-                    if (lastIntervalEnd == 0)
+                    if (lastIntervalEnd == 0) //如果是第一帧
                     {
                         if (timestamp < start || timestamp > end)
                         {
                             continue;
                         }
                     }
-                    else
+                    else //不是第一帧
                     {
                         if (timestamp <= start || timestamp > end)
                         {
@@ -427,6 +404,7 @@ void CamRigOdoCalibration::buildGraph(void)
                         }
                     }
 
+                    // 时间戳满足在时间范围内的frame 存入frames中
                     frames.push_back(frame);
                 }
             }
@@ -440,13 +418,13 @@ void CamRigOdoCalibration::buildGraph(void)
         size_t frameId = 0;
         while (frameId < frames.size())
         {
-            FrameSetPtr frameSet = boost::make_shared<FrameSet>();
-            frameSet->frames().resize(m_cameras.size());
-            frameSet->systemPose() = frames.at(frameId)->systemPose();
-            frameSet->odometryMeasurement() = frames.at(frameId)->odometryMeasurement();
-            frameSet->gpsInsMeasurement() = frames.at(frameId)->gpsInsMeasurement();
+            FrameSetPtr frameSet = boost::make_shared<FrameSet>();               // FrameSet的指针
+            frameSet->frames().resize(m_cameras.size());                // 大小 = 相机数目
+            frameSet->systemPose() = frames.at(frameId)->systemPose();           // 该帧的里程计位姿
+            frameSet->odometryMeasurement() = frames.at(frameId)->odometryMeasurement(); // 该帧的里程计位姿测量值
+            frameSet->gpsInsMeasurement() = frames.at(frameId)->gpsInsMeasurement();     // 该帧的GPS位姿测量值
 
-            uint64_t timestamp = frames.at(frameId)->cameraPose()->timeStamp();
+            uint64_t timestamp = frames.at(frameId)->cameraPose()->timeStamp();  // 该帧的时间戳
             while (frameId < frames.size() &&
                    frames.at(frameId)->cameraPose()->timeStamp() == timestamp)
             {
@@ -459,6 +437,7 @@ void CamRigOdoCalibration::buildGraph(void)
             {
                 if (frameSet->frames().at(i).get() != 0)
                 {
+                    // frameSet中每一帧的位姿数据 与 frameSet的位姿数据一致
                     frameSet->frames().at(i)->systemPose() = frameSet->systemPose();
                     frameSet->frames().at(i)->odometryMeasurement() = frameSet->odometryMeasurement();
                     frameSet->frames().at(i)->gpsInsMeasurement() = frameSet->gpsInsMeasurement();
@@ -468,6 +447,7 @@ void CamRigOdoCalibration::buildGraph(void)
             m_graph.frameSetSegments().back().push_back(frameSet);
         }
 
+        // 最新的interval的最后一帧 = end
         lastIntervalEnd = end;
 
         ++intervalCounter;

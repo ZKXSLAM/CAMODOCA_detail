@@ -38,11 +38,11 @@ CamOdoThread::CamOdoThread(PoseSource poseSource,   // PoseSource::GPS_INS : Pos
                            size_t minVOSegmentSize,        // 最小VO segmen大小
                            bool verbose)
  : m_poseSource(poseSource)     // PoseSource::GPS_INS : PoseSource::ODOMETRY; 位姿来源
- , m_cameraId(cameraId)  // 第几个相机
- , m_preprocess(preprocess)
+ , m_cameraId(cameraId)         // 第几个相机
+ , m_preprocess(preprocess)     // 是否（有？）预处理图片
  , m_running(false)
  , m_image(image)
- , m_camera(camera)
+ , m_camera(camera)             // 相机指针
  , m_odometryBuffer(odometryBuffer)
  , m_interpOdometryBuffer(interpOdometryBuffer)
  , m_odometryBufferMutex(odometryBufferMutex)
@@ -54,8 +54,8 @@ CamOdoThread::CamOdoThread(PoseSource poseSource,   // PoseSource::GPS_INS : Pos
  , m_sketch(sketch)
  , m_completed(completed)
  , m_stop(stop)
- , k_minKeyframeDistance(minKeyframeDistance)
- , k_minVOSegmentSize(minVOSegmentSize)
+ , k_minKeyframeDistance(minKeyframeDistance)   // 最小关键帧距离
+ , k_minVOSegmentSize(minVOSegmentSize)         // 最小VO segmen大小
  , k_odometryTimeout(4.0)
 {
     m_camOdoCalib.setVerbose(verbose);
@@ -80,11 +80,6 @@ CamOdoThread::setCamOdoTransformEstimate(const Eigen::Matrix4d& estimate)
     m_camOdoTransformUseEstimate = true;
 }
 
-void
-CamOdoThread::clearCamOdoTransformEstimate()
-{
-    m_camOdoTransformUseEstimate = false;
-}
 
 const Eigen::Matrix4d&
 CamOdoThread::camOdoTransform(void) const
@@ -186,8 +181,9 @@ CamOdoThread::signalFinished(void)
     return m_signalFinished;
 }
 
-void
-CamOdoThread::threadFunction(void)
+
+// TODO 进程
+void CamOdoThread::threadFunction(void)
 {
     TemporalFeatureTracker tracker(m_camera,
                                    SURF_GPU_DETECTOR, SURF_GPU_DESCRIPTOR,

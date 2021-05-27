@@ -173,6 +173,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             std::cout << "# INFO: Checking the validity of the graph..." << std::endl;
         }
 
+        // 检查图的有效性
         if (!validateGraph())
         {
             std::cout << "# ERROR: Graph is not valid." << std::endl;
@@ -187,7 +188,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         // 修剪位于相机后面的三维点
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
 
-        if (m_verbose)
+        if (m_verbose) // 计算剪枝后的重投影错误
         {
             double minError, maxError, avgError;
             size_t featureCount;
@@ -213,12 +214,13 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         // m_cameraSystem.cameraCount() : 1
         for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
         {
+            // 每个相机的世界坐标系下位姿？
             Eigen::Matrix4d H = m_cameraSystem.getGlobalCameraPose(i);
             std::cout << "m_cameraSystem.getGlobalCameraPose(i) : " << m_cameraSystem.getGlobalCameraPose(i)<< std::endl;
 
             H(2,3) = 0.0; // 不标定平移的z轴
 
-            m_cameraSystem.setGlobalCameraPose(i, H);
+            m_cameraSystem.setGlobalCameraPose(i, H); // 在cameraSystem中对每个相机模型记录其世界坐标系下位姿
         }
 
         // optimize camera extrinsics and 3D scene points
@@ -791,7 +793,7 @@ CameraRigBA::setVerbose(bool verbose)
  * 帧的重投影误差
  * @param frame     图像帧
  * @param camera    相机指针
- * @param T_cam_odo 该帧该相机的世界坐标系下位姿
+ * @param T_cam_odo 里程计到相机坐标系的平移？？
  * @param minError  最小误差（等待赋值）
  * @param maxError  最大误差（等待赋值）
  * @param avgError  平均误差（等待赋值）
@@ -922,20 +924,26 @@ void CameraRigBA::reprojectionError(double& minError, double& maxError,
         T_cam_odo[i] = m_cameraSystem.getGlobalCameraPose(i);
     }
 
+    // m_graph.frameSetSegments().size() : 1 都是1
+    std::cout << "m_graph.frameSetSegments().size() : " << m_graph.frameSetSegments().size() << std::endl;
     for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
     {
-        // 一批次的 一批次的frame集合 的集合
         const FrameSetSegment& segment = m_graph.frameSetSegment(i);
 
-
+        // segment.size() : 501
+        // segment.size() : 533
+        std::cout << "segment.size() : " << segment.size() << std::endl;
         for (size_t j = 0; j < segment.size(); ++j)
         {
             // 一批次的frame集合？？
             const FrameSetPtr& frameSet = segment.at(j);
 
+            // frameSet->frames().size() : 1(一个相机时)，4（4个相机时）
+            // 有几个相机FrameSet就有几个frames
+            std::cout << "frameSet->frames().size() : " << frameSet->frames().size() << std::endl;
             for (size_t k = 0; k < frameSet->frames().size(); ++k)
             {
-                // 对于每一帧
+                // 对于每个相机的每一帧
                 const FramePtr& frame = frameSet->frames().at(k);
 
                 if (!frame)
@@ -948,6 +956,7 @@ void CameraRigBA::reprojectionError(double& minError, double& maxError,
                 double frameAvgError;
                 size_t frameFeatureCount;
 
+                // 对每一帧计算重投影误差
                 frameReprojectionError(frame,
                                        m_cameraSystem.getCamera(frame->cameraId()),
                                        T_cam_odo[frame->cameraId()],
@@ -1818,12 +1827,19 @@ void CameraRigBA::prune(int flags, int poseType)
 {
     // 相机位姿矩阵(Twc)
     std::vector<Pose, Eigen::aligned_allocator<Pose> > T_cam_odo(m_cameraSystem.cameraCount());
-    // 外参位姿矩阵 H(Tcw)
+    // 外参位姿矩阵 H(Tco)??
     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > H_odo_cam(m_cameraSystem.cameraCount());
     for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
     {
+        // Twc
+        // T_cam_odo.at(i) :
+        // 1.00 0.00 0.00 0.00
+        // 0.00 1.00 0.00 0.00
+        // 0.00 0.00 1.00 0.00
+        // 0.00 0.00 0.00 1.00
         T_cam_odo.at(i) = m_cameraSystem.getGlobalCameraPose(i);
-
+        // Tcw
+        std::cout << "H_odo_cam.at(i) : " << std::endl<< H_odo_cam.at(i).matrix() << std::endl;
         H_odo_cam.at(i) = T_cam_odo.at(i).toMatrix().inverse();
     }
 
@@ -1867,7 +1883,7 @@ void CameraRigBA::prune(int flags, int poseType)
                 }
                 else
                 {
-                    // 相机位姿 = 外参位姿矩阵Tcw * 该帧里程计的位姿^-1  ？？？
+                    //
                     H_cam = H_odo_cam.at(cameraId) * frame->systemPose()->toMatrix().inverse();
                 }
 
@@ -3798,8 +3814,8 @@ CameraRigBA::visualizeGroundPoints(const std::vector<Eigen::Vector3d, Eigen::ali
 
 #endif
 
-bool
-CameraRigBA::validateGraph(void) const
+// 检查图的有效性
+bool CameraRigBA::validateGraph(void) const
 {
     bool valid = true;
 
@@ -3813,6 +3829,7 @@ CameraRigBA::validateGraph(void) const
 
             if (j < segment.size() - 1)
             {
+                // 相邻帧的odom位姿相同，则图的有效性为flase
                 if (segment.at(j)->systemPose().get() == segment.at(j + 1)->systemPose().get())
                 {
                     std::cout << "# WARNING: Adjacent frame sets " << j + 1

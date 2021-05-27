@@ -59,19 +59,19 @@ public:
     const cv::Mat& image(void) const;
 
 private:
-    PosePtr m_cameraPose;
-    int m_cameraId;
+    PosePtr m_cameraPose;              // 相机位姿
+    int m_cameraId;                    // 相机ID
 
-    OdometryPtr m_systemPose;
-    OdometryPtr m_odometryMeasurement;
-    PosePtr m_gpsInsMeasurement;
+    OdometryPtr m_systemPose;          // 该帧的里程计位姿
+    OdometryPtr m_odometryMeasurement; // 该帧的里程计位姿测量值
+    PosePtr m_gpsInsMeasurement;       // 该帧的GPS位姿测量值
 
-    std::vector<Point2DFeaturePtr> m_features2D;
+    std::vector<Point2DFeaturePtr> m_features2D;  // 2D特征点指针的集合
 
     cv::Mat m_image;
 };
 
-typedef boost::shared_ptr<Frame> FramePtr;
+typedef boost::shared_ptr<Frame> FramePtr;   // 每一帧图像的指针
 typedef boost::weak_ptr<Frame> FrameWPtr;
 typedef boost::shared_ptr<const Frame> FrameConstPtr;
 typedef boost::weak_ptr<const Frame> FrameConstWPtr;
@@ -177,7 +177,7 @@ class FrameSet
 public:
     FrameSet();
 
-    FramePtr& frame(int cameraId);
+    FramePtr& frame(int cameraId);  // 有几个相机就有几个FrameSet
     FrameConstPtr frame(int cameraId) const;
 
     std::vector<FramePtr>& frames(void);
@@ -210,7 +210,7 @@ class SparseGraph
 public:
     SparseGraph();
 
-    FrameSetSegment& frameSetSegment(int segmentId);
+    FrameSetSegment& frameSetSegment(int segmentId); // 一个相机对应1个frameSetSegment
     const FrameSetSegment& frameSetSegment(int segmentId) const;
 
     std::vector<FrameSetSegment>& frameSetSegments(void);

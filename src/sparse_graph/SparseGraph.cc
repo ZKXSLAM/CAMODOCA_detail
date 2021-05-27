@@ -43,7 +43,7 @@ Frame::cameraId(void) const
 }
 
 OdometryPtr&
-Frame::odometryMeasurement(void)
+Frame::odometryMeasurement(void) // 该帧的里程计位姿测量值
 {
     return m_odometryMeasurement;
 }
@@ -67,7 +67,7 @@ Frame::systemPose(void) const
 }
 
 PosePtr&
-Frame::gpsInsMeasurement(void)
+Frame::gpsInsMeasurement(void)  // 该帧的GPS位姿测量值
 {
     return m_gpsInsMeasurement;
 }
@@ -362,8 +362,7 @@ FrameSet::FrameSet()
 
 }
 
-FramePtr&
-FrameSet::frame(int cameraId)
+FramePtr& FrameSet::frame(int cameraId) // 有几个相机就有几个FrameSet
 {
     if (cameraId >= m_frames.size())
     {
@@ -379,8 +378,8 @@ FrameSet::frame(int cameraId) const
     return m_frames.at(cameraId);
 }
 
-std::vector<FramePtr>&
-FrameSet::frames(void)
+// 有几个相机FrameSet就有几个frames
+std::vector<FramePtr>& FrameSet::frames(void) // FrameSet大小 = 相机数目
 {
     return m_frames;
 }
@@ -391,8 +390,7 @@ FrameSet::frames(void) const
     return m_frames;
 }
 
-OdometryPtr&
-FrameSet::odometryMeasurement(void)
+OdometryPtr& FrameSet::odometryMeasurement(void)
 {
     return m_odometryMeasurement;
 }
@@ -455,8 +453,8 @@ SparseGraph::frameSetSegments(void) // 对帧的集合分批次集合的分批�
     return m_frameSetSegments;
 }
 
-const std::vector<FrameSetSegment>&
-SparseGraph::frameSetSegments(void) const
+// frameSetSegments.size() 恒定为1
+const std::vector<FrameSetSegment>& SparseGraph::frameSetSegments(void) const
 {
     return m_frameSetSegments;
 }

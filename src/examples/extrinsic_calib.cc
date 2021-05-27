@@ -7,7 +7,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <fstream>
 #include <thread>
-#include <limits>
+
 
 #ifdef HAVE_OPENCV3
 #include <opencv2/imgproc.hpp>
@@ -112,36 +112,6 @@ int main(int argc, char** argv)
     // calibDir :  /home/zoukaixiang/code/camodocal/build/bin/calib 指定的calib文件目录
     std::cout << "# INFO: Initializing... " << std::endl << std::flush;
 
-    if (beginStage > 0) // 需要cuda
-    {
-#ifdef HAVE_CUDA
-        // check for CUDA devices
-        cv::cuda::DeviceInfo info;
-        if (cv::cuda::getCudaEnabledDeviceCount() > 0 && info.isCompatible())
-        {
-            cv::cuda::setDevice(0);
-            cv::cuda::resetDevice();
-
-            // dummy function call
-            cv::Mat dummy(1, 1, CV_8UC1);
-            dummy = cv::Scalar(0);
-
-            cv::cuda::GpuMat dummyGPU;
-            dummyGPU.upload(dummy);
-
-            dummyGPU.release();
-        }
-        else
-        {
-            std::cout << "# ERROR: No Cuda device found!\n";
-            exit(1);
-        }
-#else  // HAVE_CUDA
-        std::cout << "# ERROR: Application not compiled with CUDA! Either recompile with CUDA or modify this program to work without it.\n";
-        exit(1);
-#endif // HAVE_CUDA
-    }
-
     //========================= Handling Input =======================
 
     //===========================Initialize calibration==========================
@@ -166,24 +136,6 @@ int main(int argc, char** argv)
                 std::cout << "# ERROR: Unable to read calibration file: " << calibFilePath.string() << std::endl;
 
                 return 0;
-            }
-        }
-
-        // read camera mask 读取相机掩模文件
-        {
-            boost::filesystem::path maskFilePath(calibDir);
-
-            std::ostringstream oss;
-            oss << "camera_" << i << "_mask.png";
-            maskFilePath /= oss.str();
-
-            cv::Mat mask = cv::imread(maskFilePath.string());
-            if (!mask.empty())
-            {
-                cv::Mat grey;
-                cv::cvtColor(mask, grey, CV_RGB2GRAY, 1);
-                camera->mask() = grey;
-                std::cout << "# INFO: Foudn camera mask for camera " << camera->cameraName() << std::endl;
             }
         }
 
@@ -225,7 +177,7 @@ int main(int argc, char** argv)
 
 
     //========================= Get all files  =========================
-    typedef std::map<int64_t, std::string>  ImageMap;// <时间戳，第几个相机>
+    typedef std::map<int64_t, std::string>  ImageMap;// <时间戳，第几个相机？？？路径>
 
     // 相当于 typedef map<int64_t,Eigen::Isometry3f> IsometryMap;  <时间戳，里程计位姿T>
     typedef std::map<int64_t, Eigen::Isometry3f, std::less<int64_t>, Eigen::aligned_allocator<std::pair<const int64_t, Eigen::Isometry3f> > > IsometryMap;
@@ -303,54 +255,6 @@ int main(int argc, char** argv)
 
             it++;
         }
-    }else //eventFile.length() != 0
-    {
-        printf("Read %s file to get all the events\n", eventFile.c_str());
-
-        std::ifstream file(eventFile.c_str());
-        if (!file.is_open())
-        {
-            printf("Cannot open %s", eventFile.c_str());
-            return 1;
-        }
-
-        // read line by line and interpret accordin event
-        std::string line;
-        Eigen::Quaternionf lastIMU(0,0,0,1);
-        while(std::getline(file, line))
-        {
-            std::stringstream str(line);
-
-            // type of event
-            unsigned long long timestamp = 0;
-            std::string type;
-
-            str >> timestamp >> type;
-
-            if (type.compare("CAM") == 0)  // 如果类型是CAM
-            {
-                int camid = 0;
-                std::string frame;
-                str >> camid >> frame;
-                inputImages[camid][timestamp] = inputDir + "/frames_" + boost::lexical_cast<std::string>(camid) + "/" + frame;
-                //printf("image [%d][%llu] = %s\n", camid, timestamp, inputImages[camid][timestamp].c_str());
-            }else if (type.compare("IMU") == 0)
-            {
-                str >> lastIMU.x() >> lastIMU.y() >> lastIMU.z() >> lastIMU.w();
-            }else if (type.compare("GPS") == 0)
-            {
-                Eigen::Vector3f gps(0,0,0);
-                str >> gps[0] >> gps[1] >> gps[2];
-
-                // construct the odometry entry
-                Eigen::Isometry3f T;
-                T.matrix().block<3,3>(0,0) = lastIMU.toRotationMatrix();
-                T.matrix().block<3,1>(0,3) = gps;
-                inputOdometry[timestamp] = T;
-
-                bUseGPS = true;
-            }
-        }
     }
 
     //========================= Start Threads =========================
@@ -373,7 +277,7 @@ int main(int argc, char** argv)
 
     CamRigOdoCalibration camRigOdoCalib(cameras, options);
 
-    // 设置初始的相机里程计位姿估计
+    // 设置初始的外参估计
     for(auto it : estimates) {
         camRigOdoCalib.setInitialCameraOdoTransformEstimates(it.first, it.second);
     }
@@ -386,6 +290,8 @@ int main(int argc, char** argv)
      * cameraCount : 相机数目
      * bUseGPS : 是否使用GPS
      */
+    // TODO 进程
+    //void CamOdoThread::threadFunction(void)
     std::thread inputThread([&inputImages, &inputOdometry, &camRigOdoCalib, cameraCount, bUseGPS]()
     {
         //uint64_t lastTimestamp = std::numeric_limits<uint64_t>::max();
@@ -474,101 +380,21 @@ int main(int argc, char** argv)
             locIterator++;
         }
 
-#if 0
-        //int ignore_frame = 3;
 
-        //std::ofstream pose_dump("pose_dump.obj");
-        //int last_vertex_idx = 1;
-
-        //for (size_t i=0; i < inputOdometry.size() && !camRigOdoCalib.isRunning(); i++)
-        for (const auto& pair : inputOdometry)
-        {
-            if (camRigOdoCalib.isRunning()) break;
-
-            uint64_t timestamp = pair.first;
-            const Eigen::Isometry3f& T = pair.second;
-
-            // dump oriented box
-            /*{
-                std::vector<Eigen::Vector3f> vertex(4);
-                std::vector<Eigen::Vector3f> color(4);
-                vertex[0] = Eigen::Vector3f(2,1,0);  color[0] = Eigen::Vector3f(255,0,0);
-                vertex[1] = Eigen::Vector3f(2,-1,0); color[1] = Eigen::Vector3f(0,255,0);
-                vertex[2] = Eigen::Vector3f(-2,1,0); color[2] = Eigen::Vector3f(0,0,255);
-                vertex[3] = Eigen::Vector3f(-2,-1,0);color[3] = Eigen::Vector3f(255,0,255);
-
-                for(Eigen::Vector3f v : vertex)
-                {
-                    v = T * v;
-                    pose_dump << "v " << v[0] << " " << v[1] << " " << v[2] << " "  << color[0] << " " << color[1] << " " << color[2] << std::endl;
-                    last_vertex_idx++;
-                }
-                pose_dump << "f " << last_vertex_idx-4 << " " << last_vertex_idx-3 << " " << last_vertex_idx-2 << std::endl;
-                pose_dump << "f " << last_vertex_idx-2 << " " << last_vertex_idx-3 << " " << last_vertex_idx-1 << std::endl;
-            }*/
-
-            // frames (make sure that sensor data is always fresher than the image data)
-            for (int c=0; c < cameraCount && timestamp > lastTimestamp; c++)
-            {
-                if (inputImages[c].find(lastTimestamp) != inputImages[c].end())
-                {
-                    std::cout << "read " << inputImages[c][lastTimestamp] << std::endl << std::flush;
-                    //frames[c] = cv::imread(inputImages[c][lastTimestamp]);
-                    camRigOdoCalib.addFrame(c, cv::imread(inputImages[c][lastTimestamp]), lastTimestamp);
-                }
-            }
-
-            if (ignore_frame-- < 0)
-                lastTimestamp = timestamp;
-        }
-#endif
 
         if (!camRigOdoCalib.isRunning())
         { camRigOdoCalib.run();}
     });
 
 
-    //****************
-    //
-    // IMPORTANT: Create a thread, and in this thread,
-    //            add data in the order of increasing timestamp
-    //            with one important exception for offline mode:
-    //            ensure that before you add a frame with timestamp t,
-    //            you have already added either odometry or GPS/INS data
-    //            with a timestamp greater than t, depending on the
-    //            pose source you are calibrating against.
     // 重要提示：创建一个线程，在此线程中，按时间戳增加的顺序添加数据，对于脱机模式有一个重要的例外：确保在添加时间戳为t的帧之前，
     //         您已经添加了时间戳大于t的里程计或GPS/INS数据，这取决于您正在校准的姿势源。
-    //
+
     // Add odometry and image data here.
     // camRigOdoCalib.addOdometry(x, y, yaw, timestamp);
     // camRigOdoCalib.addFrame(cameraId, image, timestamp);
-    //
-    // Alternatively, if you are calibrating against GPS/INS,
-    // 或者，如果您正在根据GPS/INS进行校准，
-    // set options.poseSource = GPS_INS, and add GPS/INS and image data here.
-    // camRigOdoCalib.addGpsIns(lat, lon, alt, roll, pitch, yaw, timestamp);
-    // camRigOdoCalib.addFrame(cameraId, image, timestamp);
-    //
-    // If options.mode == CamRigOdoCalibration::ONLINE,
-    // the addFrame call returns immediately. 则addFrame调用立即返回。
-    // If options.mode == CamRigOdoCalibration::OFFLINE,
-    // the addFrame call returns after the image has been processed. 则addFrame调用在处理完图像后返回。
-    //
-    // After you are done, if the minimum number of motions has not been
-    // reached, but you want to run the calibration anyway, call:
-    // 完成后，如果尚未达到最小运动次数，但仍要运行校准，请调用：
-    // camRigOdoCalib.run();
-    //
-    //****************
 
-    // Receive and process incoming data. Calibration automatically runs
-    // once minimum number of motions has been reached for all cameras.
-    // Check camRigOdoCalib.running() to see if the calibration is running.
-    // If so, you can stop adding data. To run the calibration without
-    // waiting for the minimum motion requirement to be met,
     // 接收和处理传入数据。一旦达到所有摄像机的最小运动次数，校准将自动运行。
-    // 检查camRigOdoCalib.running（）以查看校准是否正在运行。如果是这样，您可以停止添加数据。在不等待满足最小运动要求的情况下运行校准则调用
     // camRigOdoCalib.run();
 
     // 重要函数！！
@@ -580,18 +406,6 @@ int main(int argc, char** argv)
 
     std::cout << "# INFO: Wrote calibration data to " << outputDir << "." << std::endl;
     std::cout << std::fixed << std::setprecision(5);
-
-    /*std::cout << "# INFO: Current estimate (local):" << std::endl;
-    for (int i = 0; i < cameraCount; ++i)
-    {
-        const Eigen::Matrix4d& H = cameraSystem.getLocalCameraPose(i);
-        std::cout << "========== Camera " << i << " ==========" << std::endl;
-        std::cout << "Rotation: " << std::endl;
-        std::cout << H.block<3,3>(0,0) << std::endl;
-
-        std::cout << "Translation: " << std::endl;
-        std::cout << H.block<3,1>(0,3).transpose() << std::endl;
-    }*/
 
 
     float camHeightDiff = cameraSystem.getGlobalCameraPose(0)(2,3) - refCameraGroundHeight;

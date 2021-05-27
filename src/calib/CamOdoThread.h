@@ -72,8 +72,8 @@ private:
     PoseSource m_poseSource;
 
     boost::shared_ptr<boost::thread> m_thread;
-    int m_cameraId;  // 第几个相机
-    bool m_preprocess;
+    int m_cameraId;                 // 第几个相机
+    bool m_preprocess;              // 是否（有？）预处理图片
     volatile bool m_running; // poor man's synchronisation
     boost::signals2::signal<void ()> m_signalFinished;
 
@@ -81,7 +81,7 @@ private:
     std::vector<std::vector<FramePtr> > m_frameSegments;
 
     AtomicData<cv::Mat>* m_image;
-    const CameraConstPtr m_camera;
+    const CameraConstPtr m_camera;   // 相机指针
     SensorDataBuffer<OdometryPtr>& m_odometryBuffer;
     SensorDataBuffer<OdometryPtr>& m_interpOdometryBuffer;
     boost::mutex& m_odometryBufferMutex;
@@ -95,8 +95,8 @@ private:
     bool& m_completed;
     bool& m_stop;
 
-    const double k_minKeyframeDistance;
-    const size_t k_minVOSegmentSize;
+    const double k_minKeyframeDistance;   // 最小关键帧距离
+    const size_t k_minVOSegmentSize;      // 最小VO segmen大小
     const double k_odometryTimeout;
 };
 
