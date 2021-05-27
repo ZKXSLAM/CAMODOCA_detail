@@ -29,6 +29,7 @@ camodocal_link_libraries(stereo_calib
   camodocal_chessboard
 )
 
+
 camodocal_executable(extrinsic_calib
   extrinsic_calib.cc
 )
@@ -39,6 +40,7 @@ camodocal_link_libraries(extrinsic_calib
   ${Boost_PROGRAM_OPTIONS_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
   camodocal_calib
+  glog
 )
 
 endif(CAMODOCAL_CALIB_FOUND AND OpenCV_FOUND AND HAVE_OPENCV_XFEATURES2D_NONFREE)

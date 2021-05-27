@@ -29,8 +29,24 @@ namespace cv {
 #include "camodocal/calib/CamRigOdoCalibration.h"
 #include "camodocal/camera_models/CameraFactory.h"
 
+
+
+#include <glog/logging.h>
+void SignalHandler(const char* data, int size) {
+    std::ofstream fs("../log/error.log",std::ios::app);
+    std::string str = std::string(data,size);
+    fs << str;
+    fs.close();
+    LOG(INFO) << str;
+}
+
 int main(int argc, char** argv)
 {
+    google::InitGoogleLogging(argv[0]);
+    google::InstallFailureSignalHandler();
+    google::InstallFailureWriter(&SignalHandler);
+    FLAGS_log_dir = "/home/zoukaixiang/code/log";
+
     using namespace camodocal;
     namespace fs = ::boost::filesystem;
     
@@ -46,7 +62,7 @@ int main(int argc, char** argv)
     bool preprocessImages;
     bool optimizeIntrinsics;      // 是否优化内参
     std::string dataDir;          // 数据地址
-    bool verbose;                 // 是否缓冲？
+    bool verbose;                 // 是否缓冲？(获取更多的运行信息)
     std::string inputDir;         // 输入文件
     float refCameraGroundHeight;  // 相对相机真实高度
     float keyframeDistance;       // 关键帧之间的距离

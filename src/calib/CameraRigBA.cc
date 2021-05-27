@@ -66,7 +66,7 @@ CameraRigBA::CameraRigBA(CameraSystem& cameraSystem,
  * @param beginStage      开始的帧
  * @param optimizeIntrinsics  是否标定内参
  * @param saveWorkingData     是否保存工作数据
- * @param dataDir         存放数据的目录？
+ * @param dataDir         保存工作数据的目录 /data
  */
 void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
                  bool saveWorkingData, std::string dataDir)
@@ -84,6 +84,12 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
     if (m_verbose) // 默认为false
     {
+        //# INFO: # segments = 5
+        //# INFO:   Segment 0: # frame sets = 46
+        //# INFO:   Segment 1: # frame sets = 129
+        //# INFO:   Segment 2: # frame sets = 38
+        //# INFO:   Segment 3: # frame sets = 86
+        //# INFO:   Segment 4: # frame sets = 57
         std::cout << "# INFO: # segments = " << m_graph.frameSetSegments().size() << std::endl;
         for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
         {
@@ -128,7 +134,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         // 对位于相机之后的点进行修剪
         prune(PRUNE_BEHIND_CAMERA, CAMERA);
 
-        // 如果要缓存？
+        // 如果要缓存
         if (m_verbose)
         {
             double minError, maxError, avgError;
@@ -136,12 +142,14 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
             reprojectionError(minError, maxError, avgError, featureCount, CAMERA);
 
+            // Reprojection error: avg = 0.30 px | max = 11.58 px | # obs = 90539
             printf("# INFO: Reprojection error: avg = %.2f px | max = %.2f px | # obs = %lu\n",
                    avgError, maxError, featureCount);
 
             std::cout << "# INFO: Triangulating feature correspondences... " << std::endl;
         }
 
+        // 三角化对应特征
         triangulateFeatureCorrespondences();
 
         if (m_verbose)
@@ -151,8 +159,10 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
             reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
 
+            // Reprojection error for camera 0: avg = 0.30215 px | max = 11.5753 px
             printf("# INFO: Reprojection error after triangulation: avg = %.2f px | max = %.2f px | # obs = %lu\n",
                    avgError, maxError, featureCount);
+            //  3D scene points: 36874
             std::cout << "# INFO: # 3D scene points: " << m_graph.scenePointCount() << std::endl;
         }
 
@@ -172,6 +182,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             std::cout << "# INFO: Finished checking the validity of the graph." << std::endl;
         }
 
+        // 修剪位于相机后面的三维点
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
 
         if (m_verbose)
@@ -197,16 +208,19 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             std::cout << "# INFO: Running BA on odometry data... " << std::endl;
         }
 
+        // m_cameraSystem.cameraCount() : 1
         for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
         {
             Eigen::Matrix4d H = m_cameraSystem.getGlobalCameraPose(i);
+            std::cout << "m_cameraSystem.getGlobalCameraPose(i) : " << m_cameraSystem.getGlobalCameraPose(i)<< std::endl;
 
-            H(2,3) = 0.0;
+            H(2,3) = 0.0; // 不标定平移的z轴
 
             m_cameraSystem.setGlobalCameraPose(i, H);
         }
 
         // optimize camera extrinsics and 3D scene points
+        //  优化相机外参和三维场景点
         optimize(CAMERA_ODOMETRY_TRANSFORM | POINT_3D, false);
 
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY); // | PRUNE_FARAWAY | PRUNE_HIGH_REPROJ_ERR, ODOMETRY);
@@ -970,10 +984,10 @@ void CameraRigBA::reprojectionError(double& minError, double& maxError,
  *
  * @param camera  相机指针
  * @param P       三维点
- * @param cam_odo_q  该帧该相机的世界坐标系下位姿的旋转四元数
- * @param cam_odo_t  该帧该相机的世界坐标系下位姿的平移
- * @param odo_p      该帧的里程计位姿的平移
- * @param odo_att    该帧的里程及位姿的欧拉角
+ * @param cam_odo_q  该帧在相机坐标系下里程计的旋转
+ * @param cam_odo_t  该帧在相机坐标系下里程计的平移
+ * @param odo_p      该帧的里程计位姿在世界坐标系下的平移
+ * @param odo_att    该帧的里程及位姿在世界坐标系下的欧拉角
  * @param observed_p 2D特征点的坐标
  * @return
  */
@@ -986,28 +1000,25 @@ double CameraRigBA::reprojectionError(const CameraConstPtr& camera,
                                const Eigen::Vector2d& observed_p) const
 {
 
-    /**
-     * 把欧拉角转换为四元数 [cos𝛾/2,0,0,-sin𝛾/2]^T * [cos𝛽/2,0,-sin𝛽/2,0]^T * [cos𝛼/2,-sin𝛼/2,0,0] = q
-     */
+    // 把欧拉角转换为四元数 [cos𝛾/2,0,0,-sin𝛾/2]^T * [cos𝛽/2,0,-sin𝛽/2,0]^T * [cos𝛼/2,-sin𝛼/2,0,0] = q
     Eigen::Quaterniond q_z_inv(cos(odo_att(0) / 2.0), 0.0, 0.0, -sin(odo_att(0) / 2.0));
     Eigen::Quaterniond q_y_inv(cos(odo_att(1) / 2.0), 0.0, -sin(odo_att(1) / 2.0), 0.0);
     Eigen::Quaterniond q_x_inv(cos(odo_att(2) / 2.0), -sin(odo_att(2) / 2.0), 0.0, 0.0);
 
+    // 里程计的四元数位姿
     Eigen::Quaterniond q_world_odo = q_x_inv * q_y_inv * q_z_inv;
 
     // .conjugate() 返回共轭。 四元数的共轭表示相反的旋转
-    // 将里程计的位姿旋转到相机坐标系 ？？
-    // 该帧相机位姿的旋转四元数
+    // 该帧相机位姿的旋转四元数 Rcw = Rco * Row (与高翔的世界坐标系下位姿的写法相反)
     Eigen::Quaterniond q_cam = cam_odo_q.conjugate() * q_world_odo;
 
-    ///???? 谁到谁的平移 - 谁到谁的平移
-    // 该帧相机位姿的平移
+    // 该帧相机位姿的平移 tcw = -Rcw * two - Rco * toc
     Eigen::Vector3d t_cam = - q_cam.toRotationMatrix() * odo_p - cam_odo_q.conjugate().toRotationMatrix() * cam_odo_t;
 
     return camera->reprojectionError(P, q_cam, t_cam, observed_p);
 }
 
-// 三角话对应特征
+// 三角化对应特征
 void CameraRigBA::triangulateFeatureCorrespondences(void)
 {
     // remove 3D scene points
@@ -1216,7 +1227,7 @@ void CameraRigBA::triangulateFeatures(FramePtr& frame1, FramePtr& frame2,
 
 /**
  * 找到两个帧中匹配的特征
- * @param features 当前帧的特征点
+ * @param features 当前帧的特征点指针的集合
  * @param nViews   视图的数目(一般就是2)
  * @param correspondences  对应特征点的集合
  */
@@ -1233,14 +1244,16 @@ void CameraRigBA::find2D2DCorrespondences(const std::vector<Point2DFeaturePtr>& 
 
     correspondences.reserve(features.size());
 
+    // 对于每个2D特征点指针
     for (size_t i = 0; i < features.size(); ++i)
     {
         std::vector<Point2DFeaturePtr> pt(nViews);
 
-        // 上一帧的特征
+        // 将该
         pt[nViews - 1] = features.at(i);
         bool foundCorrespondences = true;
 
+        // j = 1
         for (int j = nViews - 1; j > 0; --j)
         {
             //当前特征之前的匹配为空或者没有之前的最佳匹配，就没有找到匹配的特征，退出循环
@@ -1250,8 +1263,10 @@ void CameraRigBA::find2D2DCorrespondences(const std::vector<Point2DFeaturePtr>& 
                 break;
             }
 
+            //pt[0] = pt[1]->prevMatch().lock()
             pt[j - 1] = pt[j]->prevMatch().lock();
 
+            // 返回指针
             if (pt[j - 1].get() == 0)
             {
                 foundCorrespondences = false;
@@ -1934,16 +1949,26 @@ void CameraRigBA::prune(int flags, int poseType)
     }
 }
 
-void
-CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
+/**
+ * BA
+ * @param flags     优化的目标 ，例如 CAMERA_ODOMETRY_TRANSFORM | POINT_3D
+ * @param optimizeZ
+ * @param nIterations
+ */
+void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 {
+    // 里程计残差
     size_t nOdometryResiduals = 0;
     Eigen::Matrix3d sqrtOdometryPrecisionMat;
     sqrtOdometryPrecisionMat.setIdentity();
-    if (flags & ODOMETRY_6D_POSE)
+
+    // 优化目标加上优化里程计位姿
+    if (flags & ODOMETRY_6D_POSE) // & 按位与
     {
         // compute precision matrix for odometry data
+        // 计算里程计数据的精度矩阵
         std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > errVec;
+
         Eigen::Vector3d errMean = Eigen::Vector3d::Zero();
         for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
         {
@@ -1959,16 +1984,21 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
             {
                 FrameSetPtr frameSet = segment.at(j);
 
+  std::cout << "frameSet->odometryMeasurement()->toMatrix() : " << std::endl<< frameSet->odometryMeasurement()->toMatrix()<< std::endl;
+  std::cout << "frameSet->odometryMeasurement()->toMatrix().inverse() : " << std::endl<< frameSet->odometryMeasurement()->toMatrix().inverse()<< std::endl;
+  std::cout << "frameSetPrev->odometryMeasurement()->toMatrix() : " << std::endl<< frameSetPrev->odometryMeasurement()->toMatrix()<< std::endl;
                 Eigen::Matrix4d H_odo_meas = frameSet->odometryMeasurement()->toMatrix().inverse() *
                                              frameSetPrev->odometryMeasurement()->toMatrix();
 
-
+                // ???
                 Eigen::Matrix4d H_err = H_odo_meas *
                                         frameSetPrev->systemPose()->toMatrix().inverse() *
                                         frameSet->systemPose()->toMatrix();
 
                 Eigen::Matrix3d R_err = H_err.block<3,3>(0,0);
                 double r, p, y;
+
+                // 旋转矩阵转变为欧拉角
                 mat2RPY(R_err, r, p, y);
 
                 Eigen::Vector3d err;
@@ -1983,6 +2013,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
         }
         errMean /= static_cast<double>(errVec.size());
 
+        // 里程计协方差
         Eigen::Matrix3d odometryCovariance;
         odometryCovariance.setZero();
         for (size_t i = 0; i < errVec.size(); ++i)
@@ -1995,9 +2026,9 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 
         if (odometryCovariance.trace() < 1e-10)
         {
-            // No loop closures are found. Hence, the measurement covariance
-            // for odometry data is a zero matrix. In this case,
-            // use a reasonable measurement covariance.
+            // No loop closures are found. Hence, the measurement covariance for odometry data is a zero matrix.
+            // In this case, use a reasonable measurement covariance.
+            // 未找到回路闭合。因此，里程计数据的测量协方差是零矩阵。在这种情况下，使用合理的测量协方差。
 
             odometryCovariance << 2.5e-5, 0.0, 0.0,
                                   0.0, 6.25e-6, 0.0,
@@ -2005,6 +2036,7 @@ CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
         }
 
         Eigen::Matrix3d odometryPrecisionMat = odometryCovariance.inverse();
+        // sqrtm : 矩阵开平方根， sqrt：矩阵对应的元素开平方
         sqrtOdometryPrecisionMat = sqrtm(odometryPrecisionMat);
 
         nOdometryResiduals = errVec.size();

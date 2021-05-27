@@ -100,7 +100,7 @@ void CamRigOdoCalibration::addFrame(int cameraId, const cv::Mat& image,
 
     if (m_options.mode == OFFLINE)
     {
-        frame->waitForProcessingDone();  // ???
+        frame->waitForProcessingDone();  // ?
     }
 }
 
@@ -291,6 +291,9 @@ void CamRigOdoCalibration::start(void)
     // run calibration steps
     CameraRigBA ba(m_cameraSystem, m_graph, m_options.windowDistance);
     ba.setVerbose(m_options.verbose);
+
+    // m_options.saveWorkingData : 1
+    // m_options.dataDir : /data
     ba.run(m_options.beginStage, m_options.optimizeIntrinsics, m_options.saveWorkingData, m_options.dataDir);
 
     std::cout << "# INFO: Camera rig calibration took " << timeInSeconds() - tsStart << "s." << std::endl;
@@ -350,9 +353,9 @@ void CamRigOdoCalibration::buildGraph(void)
     {
         CamOdoThread* camOdoThread = m_camOdoThreads.at(i);
 
-        // 将camOdoThread的相机ID和m_cameras的相机id对应起来?
+        // 将m_camOdoThread的相机ID和m_cameras的相机id对应起来?
         m_cameraSystem.setCamera(camOdoThread->cameraId(), m_cameras.at(camOdoThread->cameraId()));
-        // 将camOdoThread的相机ID和m_globalPoses相机id对应的位姿对应起来?
+        // 将m_camOdoThread的相机ID和m_globalPoses相机id对应的位姿对应起来
         m_cameraSystem.setGlobalCameraPose(camOdoThread->cameraId(),
                                            camOdoThread->camOdoTransform());
 

@@ -142,8 +142,8 @@ Odometry::attitudeData(void) const
     return m_att.data();
 }
 
-Eigen::Matrix4d
-Odometry::toMatrix(void) const
+// 把里程计的欧拉角和平移转化为变化矩阵
+Eigen::Matrix4d Odometry::toMatrix(void) const
 {
     Eigen::Matrix4d odometryPose;
     odometryPose.setIdentity();

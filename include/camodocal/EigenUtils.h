@@ -190,8 +190,8 @@ Eigen::Matrix<T, 3, 3> RPY2mat(T roll, T pitch, T yaw)
     return m;
 }
 
-template<typename T>
-void mat2RPY(const Eigen::Matrix<T, 3, 3>& m, T& roll, T& pitch, T& yaw)
+// 旋转矩阵转变为欧拉角
+template<typename T> void mat2RPY(const Eigen::Matrix<T, 3, 3>& m, T& roll, T& pitch, T& yaw)
 {
     roll = atan2(m(2,1), m(2,2));
     pitch = atan2(-m(2,0), sqrt(m(2,1) * m(2,1) + m(2,2) * m(2,2)));
