@@ -437,12 +437,16 @@ int main(int argc, char** argv)
         std::cout << H.inverse().matrix() << std::endl;
 
         Eigen::Vector3d euler_angles = H.block<3,3>(0,0).eulerAngles(2,1,0);
-        std::cout << "euler_angles = " << euler_angles.x() << ", " <<  euler_angles.y() << ", " << euler_angles.z() << std::endl;
+        std::cout << "euler_angles = " << euler_angles.x() *180/ M_PI  << ", " <<  euler_angles.y()*180/ M_PI<< ", " << euler_angles.z() *180/ M_PI<< std::endl;
+
+        Eigen::Vector3d euler_angles_ = H.inverse().block<3,3>(0,0).eulerAngles(2,1,0);
+        std::cout << "euler_angles = " << euler_angles_.x() *180/ M_PI  << ", " <<  euler_angles_.y()*180/ M_PI<< ", " << euler_angles_.z() *180/ M_PI<< std::endl;
+
 
         Eigen::Matrix3d truth_R;
         truth_R << 0.99981397 ,-0.0088583408, -0.017136602, 0.0057699317, -0.710343, 0.70383203,-0.018407701, -0.70380002, -0.71015996;
         Eigen::Vector3d euler_truth = truth_R.eulerAngles(2,1,0);
-        std::cout << "euler_angles_truth = " << euler_truth.x() << ", " <<  euler_truth.y() << ", " << euler_truth.z() << std::endl;
+        std::cout << "euler_angles_truth = " << euler_truth.x()*180/ M_PI << ", " <<  euler_truth.y()*180/ M_PI << ", " << euler_truth.z()*180/ M_PI << std::endl;
 
 
 

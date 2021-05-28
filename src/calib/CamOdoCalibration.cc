@@ -106,6 +106,7 @@ CamOdoCalibration::addMotionSegment(const std::vector<Eigen::Matrix4d, Eigen::al
         camMotion.rotation = RotationToAngleAxis(R_cam);
         camMotion.translation = t_cam;
 
+        // segment 中的相机运动
         segment.camMotions.push_back(camMotion);
     }
 
@@ -114,22 +115,6 @@ CamOdoCalibration::addMotionSegment(const std::vector<Eigen::Matrix4d, Eigen::al
     return true;
 }
 
-void
-CamOdoCalibration::getCurrentCameraMotion(Eigen::Vector3d& rotation, Eigen::Vector3d& translation) const
-{
-    if (mSegments.empty())
-    {
-        return;
-    }
-
-    if (mSegments.back().odoMotions.empty())
-    {
-        return;
-    }
-
-    rotation = mSegments.back().camMotions.back().rotation;
-    translation = mSegments.back().camMotions.back().translation;
-}
 
 size_t
 CamOdoCalibration::getCurrentMotionCount(void) const
@@ -156,11 +141,6 @@ CamOdoCalibration::setMotionCount(size_t count)
     mMinMotions = count;
 }
 
-bool
-CamOdoCalibration::motionsEnough(void) const
-{
-    return getCurrentMotionCount() >= getMotionCount();
-}
 
 bool
 CamOdoCalibration::calibrate(Eigen::Matrix4d& H_cam_odo)
@@ -193,105 +173,6 @@ CamOdoCalibration::calibrate(Eigen::Matrix4d& H_cam_odo)
     }
 
     return estimate(rvecsOdo, tvecsOdo, rvecsCam, tvecsCam, H_cam_odo, scales);
-}
-
-bool
-CamOdoCalibration::readMotionSegmentsFromFile(const std::string& filename)
-{
-    std::ifstream ifs(filename.c_str());
-    if (!ifs.is_open())
-    {
-        return false;
-    }
-
-    size_t nSegments;
-    ifs >> nSegments;
-
-    mSegments.clear();
-    mSegments.resize(nSegments);
-
-    for (size_t i = 0; i < nSegments; ++i)
-    {
-        size_t motionCount;
-        ifs >> motionCount;
-
-        mSegments.at(i).odoMotions.resize(motionCount);
-        mSegments.at(i).camMotions.resize(motionCount);
-    }
-
-    for (size_t i = 0; i < mSegments.size(); ++i)
-    {
-        MotionSegment& segment = mSegments.at(i);
-
-        for (size_t j = 0; j < segment.odoMotions.size(); ++j)
-        {
-            for (int k = 0; k < 3; ++k)
-            {
-                ifs >> segment.odoMotions.at(j).rotation(k);
-            }
-            for (int k = 0; k < 3; ++k)
-            {
-                ifs >> segment.odoMotions.at(j).translation(k);
-            }
-            for (int k = 0; k < 3; ++k)
-            {
-                ifs >> segment.camMotions.at(j).rotation(k);
-            }
-            for (int k = 0; k < 3; ++k)
-            {
-                ifs >> segment.camMotions.at(j).translation(k);
-            }
-        }
-    }
-
-    return true;
-}
-
-bool
-CamOdoCalibration::writeMotionSegmentsToFile(const std::string& filename) const
-{
-    std::ofstream ofs(filename.c_str());
-    if (!ofs.is_open())
-    {
-        return false;
-    }
-
-    ofs << mSegments.size() << " ";
-    for (size_t i = 0; i < mSegments.size(); ++i)
-    {
-        ofs << mSegments.at(i).odoMotions.size() << " ";
-    }
-    ofs << std::endl;
-
-    for (size_t i = 0; i < mSegments.size(); ++i)
-    {
-        const MotionSegment& segment = mSegments.at(i);
-
-        for (size_t j = 0; j < segment.odoMotions.size(); ++j)
-        {
-            for (int k = 0; k < 3; ++k)
-            {
-                ofs << segment.odoMotions.at(j).rotation(k) << " ";
-            }
-            for (int k = 0; k < 3; ++k)
-            {
-                ofs << segment.odoMotions.at(j).translation(k) << " ";
-            }
-            for (int k = 0; k < 3; ++k)
-            {
-                ofs << segment.camMotions.at(j).rotation(k) << " ";
-            }
-            for (int k = 0; k < 3; ++k)
-            {
-                ofs << segment.camMotions.at(j).translation(k) << " ";
-            }
-            ofs << std::endl;
-        }
-    }
-
-    ofs.close();
-
-    return true;
 }
 
 bool

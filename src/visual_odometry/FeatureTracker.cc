@@ -535,6 +535,7 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
     {
         m_frames.clear();
         m_frames.push_back(m_BA.currentFrame());
+        // 相机的位姿
         m_poses = m_BA.poses();
     }
     m_BA.setVerbose(m_verbose);
@@ -861,8 +862,8 @@ TemporalFeatureTracker::getFrames(void) const
     return m_frames;
 }
 
-const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >&
-TemporalFeatureTracker::getPoses(void) const
+// 获得相机位姿
+const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& TemporalFeatureTracker::getPoses(void) const
 {
     return m_poses;
 }

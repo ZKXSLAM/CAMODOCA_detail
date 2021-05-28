@@ -19,16 +19,9 @@ public:
 
     void reset(void);
 
-    bool readPosesFromTextFile(const std::string& filename);
-    bool readPosesFromTextFile(const std::string& filename,
-                               std::vector<std::string>& cameraNames);
     bool writePosesToTextFile(const std::string& filename) const;
 
-    bool readFromDirectory(const std::string& directory);
     bool writeToDirectory(const std::string& directory) const;
-
-    bool readFromXmlFile(const std::string& filename);
-    bool writeToXmlFile(const std::string& filename) const;
 
     int getCameraIdx(const CameraConstPtr& camera) const;
     CameraPtr getCamera(int idx) const;
@@ -42,25 +35,8 @@ public:
     Eigen::Matrix4d getGlobalCameraPose(int idx) const;
     Eigen::Matrix4d getGlobalCameraPose(const CameraConstPtr& camera) const;
 
-    // local camera pose is the transform from camera frame to reference camera frame
-    // 局部相机姿态是从相机帧到参考相机帧的变换
-    Eigen::Matrix4d getLocalCameraPose(int idx) const;
-    Eigen::Matrix4d getLocalCameraPose(const CameraConstPtr& camera) const;
 
     bool setGlobalCameraPose(int idx, const Eigen::Matrix4d& pose);
-    bool setGlobalCameraPose(const CameraConstPtr& camera, const Eigen::Matrix4d& pose);
-    bool setLocalCameraPose(int idx, const Eigen::Matrix4d& pose);
-    bool setLocalCameraPose(const CameraConstPtr& camera, const Eigen::Matrix4d& pose);
-
-    // pair index corresponds to the index of the right camera in the camera pair
-    // 索引对 对应于 相机对中 右侧相机的索引
-    int leftCameraIdx(int cameraPairIdx) const;
-    int rightCameraIdx(int cameraPairIdx) const;
-
-    // relative transform is the transform from the left camera frame to the right camera frame
-    // 相对变换是从左相机帧到右相机帧的变换
-    Eigen::Matrix4d relativeTransformBetweenCameraPair(int pairIdx) const;
-    double translationScaleBetweenCameraPair(int pairIdx) const;
 
     CameraSystem& operator=(const CameraSystem& other);
 

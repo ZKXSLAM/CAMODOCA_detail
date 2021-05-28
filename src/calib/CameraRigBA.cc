@@ -128,7 +128,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
 #endif
 
-    // stage 1 利用mono-VO和run-BA的特征对应对三维点进行三角化
+    /// stage 1 利用mono-VO和run-BA的特征对应对三维点进行三角化
     if (beginStage <= 1)
     {
         // 对位于相机之后的点进行修剪
@@ -166,12 +166,10 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
                    avgError, maxError, featureCount);
             //  3D scene points: 36874
             std::cout << "# INFO: # 3D scene points: " << m_graph.scenePointCount() << std::endl;
-        }
 
-        if (m_verbose)
-        {
             std::cout << "# INFO: Checking the validity of the graph..." << std::endl;
         }
+
 
         // 检查图的有效性
         if (!validateGraph())
@@ -180,10 +178,9 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             exit(1);
         }
 
-        if (m_verbose)
-        {
-            std::cout << "# INFO: Finished checking the validity of the graph." << std::endl;
-        }
+
+        std::cout << "# INFO: Finished checking the validity of the graph." << std::endl;
+
 
         // 修剪位于相机后面的三维点
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
@@ -206,17 +203,16 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         visualizeExtrinsics("stage0-extrinsics");
 #endif
 
-        if (m_verbose)
-        {
-            std::cout << "# INFO: Running BA on odometry data... " << std::endl;
-        }
+
+        std::cout << "# INFO: Running BA on odometry data... " << std::endl;
+
 
         // m_cameraSystem.cameraCount() : 1
         for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
         {
-            // 每个相机的世界坐标系下位姿？
+            // 每个相机的世界坐标系下位姿
+            // m_cameraSystem.getGlobalCameraPose(i) :  1.00  0.00  0.10  2.11
             Eigen::Matrix4d H = m_cameraSystem.getGlobalCameraPose(i);
-            std::cout << "m_cameraSystem.getGlobalCameraPose(i) : " << m_cameraSystem.getGlobalCameraPose(i)<< std::endl;
 
             H(2,3) = 0.0; // 不标定平移的z轴
 
@@ -728,6 +724,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
     if (beginStage <= 5)
     {
         // estimate ground height using plane sweep stereo
+        // 使用平面双目扫描估计地面高度
         double zGround = 0.0;
         if (estimateAbsoluteGroundHeight(zGround))
         {
@@ -932,7 +929,6 @@ void CameraRigBA::reprojectionError(double& minError, double& maxError,
 
         // segment.size() : 501
         // segment.size() : 533
-        std::cout << "segment.size() : " << segment.size() << std::endl;
         for (size_t j = 0; j < segment.size(); ++j)
         {
             // 一批次的frame集合？？
@@ -940,7 +936,6 @@ void CameraRigBA::reprojectionError(double& minError, double& maxError,
 
             // frameSet->frames().size() : 1(一个相机时)，4（4个相机时）
             // 有几个相机FrameSet就有几个frames
-            std::cout << "frameSet->frames().size() : " << frameSet->frames().size() << std::endl;
             for (size_t k = 0; k < frameSet->frames().size(); ++k)
             {
                 // 对于每个相机的每一帧
@@ -1839,7 +1834,6 @@ void CameraRigBA::prune(int flags, int poseType)
         // 0.00 0.00 0.00 1.00
         T_cam_odo.at(i) = m_cameraSystem.getGlobalCameraPose(i);
         // Tcw
-        std::cout << "H_odo_cam.at(i) : " << std::endl<< H_odo_cam.at(i).matrix() << std::endl;
         H_odo_cam.at(i) = T_cam_odo.at(i).toMatrix().inverse();
     }
 
@@ -1968,10 +1962,10 @@ void CameraRigBA::prune(int flags, int poseType)
 }
 
 /**
- * BA
+ * BA优化
  * @param flags     优化的目标 ，例如 CAMERA_ODOMETRY_TRANSFORM | POINT_3D
- * @param optimizeZ
- * @param nIterations
+ * @param optimizeZ 是否优化z轴
+ * @param nIterations  迭代次数
  */
 void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 {
@@ -1980,7 +1974,7 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
     Eigen::Matrix3d sqrtOdometryPrecisionMat;
     sqrtOdometryPrecisionMat.setIdentity();
 
-    // 优化目标加上优化里程计位姿
+    // 通过里程计位姿优化目标
     if (flags & ODOMETRY_6D_POSE) // & 按位与
     {
         // compute precision matrix for odometry data
@@ -1988,10 +1982,14 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
         std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > errVec;
 
         Eigen::Vector3d errMean = Eigen::Vector3d::Zero();
+        // 1
+        std::cout << "m_graph.frameSetSegments().size() : " << m_graph.frameSetSegments().size() << std::endl;
         for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
         {
             FrameSetSegment& segment = m_graph.frameSetSegment(i);
 
+            // 501
+            std::cout << "segment.size() : " << segment.size() << std::endl;
             if (segment.size() <= 1)
             {
                 continue;
@@ -2007,25 +2005,25 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                 //  0.87   0.49   0.00 158.00
                 //  0.00   0.00   1.00   0.00
                 //  0.00   0.00   0.00   1.00
-                //frameSet->odometryMeasurement()->toMatrix().inverse() :
-                //   0.49    0.87    0.00 -124.88
-                //  -0.87    0.49   -0.00 -100.13
-                //   0.00    0.00    1.00   -0.00
-                //  -0.00    0.00   -0.00    1.00
-                //frameSetPrev->odometryMeasurement()->toMatrix() :
-                //  0.49  -0.87   0.00 -25.79
-                //  0.87   0.49   0.00 157.78
-                //  0.00   0.00   1.00   0.00
-                //  0.00   0.00   0.00   1.00
                 Eigen::Matrix4d H_odo_meas = frameSet->odometryMeasurement()->toMatrix().inverse() *
                                              frameSetPrev->odometryMeasurement()->toMatrix();
-
-                // ???
+                // TODO!
+                // H_err :
+                //1.00 0.00 0.00 0.00
+                //0.00 1.00 0.00 0.00
+                //0.00 0.00 1.00 0.00
+                //0.00 0.00 0.00 1.00
                 Eigen::Matrix4d H_err = H_odo_meas *
                                         frameSetPrev->systemPose()->toMatrix().inverse() *
                                         frameSet->systemPose()->toMatrix();
+                std::cout << "H_err : "<< std::endl << H_err.matrix() << std::endl;
 
+                // R_err :
+                //1.00 0.00 0.00
+                //0.00 1.00 0.00
+                //0.00 0.00 1.00
                 Eigen::Matrix3d R_err = H_err.block<3,3>(0,0);
+                std::cout << "R_err : " << std::endl << R_err.matrix() << std::endl;
                 double r, p, y;
 
                 // 旋转矩阵转变为欧拉角
@@ -2041,6 +2039,7 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                 frameSetPrev = frameSet;
             }
         }
+        // 平均误差
         errMean /= static_cast<double>(errVec.size());
 
         // 里程计协方差
@@ -2052,8 +2051,10 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 
             odometryCovariance += e * e.transpose();
         }
+        // 协方差的平均值
         odometryCovariance /= static_cast<double>(errVec.size());
 
+        // .trace() : 主对角线系数之和
         if (odometryCovariance.trace() < 1e-10)
         {
             // No loop closures are found. Hence, the measurement covariance for odometry data is a zero matrix.
@@ -2154,14 +2155,16 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 
     ceres::Problem problem;
 
+    ///  配置求解器
     ceres::Solver::Options options;
+    // 增量方式如何求解
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+    // 最大迭代次数
     options.max_num_iterations = nIterations;
     options.num_threads = 8;
     options.num_linear_solver_threads = 8;
 
-    // intrinsics
-    /// @todo vec<vec<>> is slow! consider alternatives like boost::static_vector multiarray, or even an eigen matrix
+    // intrinsic
     std::vector<std::vector<double> > intrinsicParams(m_cameraSystem.cameraCount());
 
     for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
@@ -2173,7 +2176,13 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
     std::vector<Pose, Eigen::aligned_allocator<Pose> > T_cam_odo(m_cameraSystem.cameraCount());
     for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
     {
+        //T_cam_odo.at(i) :   不断变化
+        // 1.00  0.00 -0.01  2.42
+        // 0.01 -0.68  0.73 -0.63
+        //-0.01 -0.73 -0.68  0.00
+        // 0.00  0.00  0.00  1.00
         T_cam_odo.at(i) = Pose(m_cameraSystem.getGlobalCameraPose(i));
+
     }
 
     boost::dynamic_bitset<> optimizeExtrinsics(m_cameraSystem.cameraCount());
@@ -2255,7 +2264,7 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
 
                         break;
                     }
-                    case CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_3D_POSE | POINT_3D:
+
                     case CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE | POINT_3D:
                     {
                         costFunction

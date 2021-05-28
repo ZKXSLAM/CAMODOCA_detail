@@ -218,10 +218,12 @@ void CamOdoThread::threadFunction(void)
 
         if (m_stop)
         {
+            // 相机位姿
             std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > voPoses = tracker.getPoses();
 
             if (odometryPoses.size() >= k_minVOSegmentSize) // 如果里程计位姿的维度大于等于最小VO分割尺度
             {
+                // 添加m_frameSegments 数据（相机，里程计位姿） // 回档
                 addCamOdoCalibData(voPoses, odometryPoses, tracker.getFrames());
             }
 
@@ -471,11 +473,11 @@ void CamOdoThread::threadFunction(void)
 
     if (!m_camOdoTransformUseEstimate)
     {
-    //    m_camOdoCalib.writeMotionSegmentsToFile(filename);
 
         Eigen::Matrix4d H_cam_odo;
-        m_camOdoCalib.calibrate(H_cam_odo);
 
+        m_camOdoCalib.calibrate(H_cam_odo);
+        std::cout <<"m_camOdoTransform = H_cam_odo : "  << H_cam_odo << std::endl;
         m_camOdoTransform = H_cam_odo;
     }
 
@@ -499,8 +501,8 @@ void CamOdoThread::threadFunction(void)
     m_signalFinished();
 }
 
-void
-CamOdoThread::addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& camPoses,
+// 添加m_frameSegments 数据（相机，里程计位姿）
+void CamOdoThread::addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& camPoses,
                                  const std::vector<OdometryPtr>& odoPoses,
                                  std::vector<FramePtr>& frameSegment)
 {
@@ -522,23 +524,18 @@ CamOdoThread::addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::align
     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > odoMotions;
     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > camMotions;
 
-    //static boost::mutex m;
-    //boost::mutex::scoped_lock lock(m);
 
     for (size_t i = 1; i < odoPoses.size(); ++i)
     {
+        /// 因为整个系统是刚体，所以相同变化下里程计的旋转和相机的旋转是一致的。认为这里可能是为了两个相乘求误差
+        // To(i) * R = To(i-1)
         Eigen::Matrix4d relativeOdometryPose = odoPoses.at(i)->toMatrix().inverse() * odoPoses.at(i - 1)->toMatrix();
         odoMotions.push_back(relativeOdometryPose);
 
+        // Tc(i) = R * Tc(i-1)
         Eigen::Matrix4d relativeCameraPose = camPoses.at(i) * camPoses.at(i - 1).inverse();
         camMotions.push_back(relativeCameraPose);
 
-        //Eigen::Vector3d todo = relativeOdometryPose.block<3,1>(0,3);
-        //Eigen::Vector3d tcam = relativeCameraPose.block<3,1>(0,3);
-        //if (std::isnan(todo[0]) || std::isnan(todo[1]) || std::isnan(todo[2]))
-        //    std::cout << "odo [" << i << "] -> " << relativeOdometryPose.block<3,1>(0,3).transpose() << std::endl;
-        //if (std::isnan(tcam[0]) || std::isnan(tcam[1]) || std::isnan(tcam[2]))
-        //    std::cout << "cam [" << i << "] -> " << relativeCameraPose.block<3,1>(0,3).transpose() << std::endl;
     }
 
     if (!m_camOdoCalib.addMotionSegment(camMotions, odoMotions))

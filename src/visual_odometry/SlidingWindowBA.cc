@@ -55,6 +55,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
         frameCurr->cameraPose() = boost::make_shared<Pose>();
     }
 
+    // 将当前帧添加给滑窗
     m_window.push_back(frameCurr);
     while ((int)m_window.size() > m_N)
     {
@@ -68,10 +69,11 @@ SlidingWindowBA::addFrame(FramePtr& frame)
         std::cout << "# INFO: Added frame " << m_frameCount - 1 << "." << std::endl;
     }
 
-    if (m_frameCount == 1)
+    if (m_frameCount == 1) // 如果当前添加帧为第一帧
     {
         if (m_mode == VO)
         {
+            // 设定第一帧的相机坐标系位姿为世界坐标系原点
             frameCurr->cameraPose()->rotation() = Eigen::Quaterniond::Identity();
             frameCurr->cameraPose()->translation().setZero();
         }
@@ -82,6 +84,8 @@ SlidingWindowBA::addFrame(FramePtr& frame)
     FramePtr framePrev = *(++m_window.rbegin());
 
     // find feature correspondences between previous and current frames
+    /// 查找上一帧和当前帧之间的特征对应
+
     std::vector<std::vector<Point2DFeaturePtr> > featureCorrespondences;
     findFeatureCorrespondences(frameCurr->features2D(), 2, featureCorrespondences);
 
@@ -96,12 +100,14 @@ SlidingWindowBA::addFrame(FramePtr& frame)
 
     if (m_verbose)
     {
+        // 在最新2帧中找到 ...  个特征对应
         std::cout << "# INFO: Found " << featureCorrespondences.size() << " feature correspondences in last 2 frames." << std::endl;
     }
 
     if (m_frameCount == 2)
     {
         // compute pose in frame 1 relative to frame 0
+        /// 计算帧1中相对于帧0的位姿
 
         std::vector<cv::Point2f> imagePoints[2];
         for (size_t i = 0; i < featureCorrespondences.size(); ++i)
@@ -118,6 +124,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
         {
             if (m_verbose)
             {
+                // 用于BA初始化的2D-2D匹配数量不足
                 std::cout << "# INFO: Insufficient number of 2D-2D correspondences for BA initialization." << std::endl;
             }
 
@@ -633,8 +640,8 @@ SlidingWindowBA::currentFrame(void)
     return m_window.back();
 }
 
-std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >
-SlidingWindowBA::poses(void) const
+// 获得相机的位姿
+std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > SlidingWindowBA::poses(void) const
 {
     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > poses;
 
@@ -651,7 +658,7 @@ SlidingWindowBA::poses(void) const
         poses.push_back(pose);
     }
 
-    return poses;
+    return poses; // 返回相机的位姿
 }
 
 std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >
@@ -850,8 +857,9 @@ SlidingWindowBA::findFeatureCorrespondences(const std::vector<Point2DFeaturePtr>
                                             int nViews,
                                             std::vector<std::vector<Point2DFeaturePtr> >& correspondences) const
 {
-    // find feature correspondences across n views starting backward from
-    // specified feature set in nth view
+    // find feature correspondences across n views starting backward from specified feature set in nth view
+    /// 从第n个视图中指定的特征集向后开始，在n个视图中查找特征对应关系
+
     if (nViews < 2)
     {
         return;

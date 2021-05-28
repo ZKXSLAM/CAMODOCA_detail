@@ -73,13 +73,13 @@ private:
 
     void optimize(void);
 
-    int m_N;
+    int m_N;        // 滑窗设定最大size
     int m_n;
     int m_mode;
 
     Pose m_T_cam_odo;
 
-    std::list<FramePtr> m_window;
+    std::list<FramePtr> m_window; // 滑动窗口
 
     const CameraConstPtr k_camera;
 
@@ -88,7 +88,7 @@ private:
     const double k_nominalFocalLength;
     const double k_reprojErrorThresh;
 
-    size_t m_frameCount;
+    size_t m_frameCount; // 添加帧的总数
     bool m_verbose;
 
     const int k_min2D2DFeatureCorrespondences;

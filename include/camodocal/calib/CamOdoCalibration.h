@@ -15,17 +15,13 @@ public:
     bool addMotionSegment(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& H_cam,
                           const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& H_odo);
 
-    void getCurrentCameraMotion(Eigen::Vector3d& rotation, Eigen::Vector3d& translation) const;
 
-    bool motionsEnough(void) const;
     size_t getCurrentMotionCount(void) const;
     size_t getMotionCount(void) const;
     void setMotionCount(size_t count);
 
     bool calibrate(Eigen::Matrix4d& H_cam_odo);
 
-    bool readMotionSegmentsFromFile(const std::string& filename);
-    bool writeMotionSegmentsToFile(const std::string& filename) const;
 
     bool getVerbose(void);
     void setVerbose(bool on = false);

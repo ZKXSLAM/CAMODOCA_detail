@@ -145,7 +145,7 @@ protected:
 
     SlidingWindowBA m_BA;
     std::vector<FramePtr> m_frames;
-    std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > m_poses;
+    std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > m_poses; // 相机的位姿
 
     cv::Mat m_matchingMask;
     const float k_maxDelta;
