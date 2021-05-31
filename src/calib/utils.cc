@@ -6,10 +6,12 @@ namespace camodocal
 {
 
 
-/*
- * odometryBuffer : 里程计信息集合
- * timestamp : 图像时间戳
- * interpOdo : ?
+/**
+ * 插入（插值）里程计信息
+ * @param odometryBuffer 里程计信息集合
+ * @param timestamp      图像时间戳
+ * @param interpOdo
+ * @return
  */
 bool interpolateOdometry(SensorDataBuffer<OdometryPtr>& odometryBuffer,
                     uint64_t timestamp, OdometryPtr& interpOdo)
@@ -24,6 +26,7 @@ bool interpolateOdometry(SensorDataBuffer<OdometryPtr>& odometryBuffer,
     interpOdo = OdometryPtr(new Odometry);
     interpOdo->timeStamp() = timestamp;
 
+    // 如果里程计在目标时间戳前后帧位姿相同，则插值的里程计位姿和他们一样
     if (prev->position() == next->position())
     {
         interpOdo->position() = prev->position();

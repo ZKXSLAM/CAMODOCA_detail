@@ -64,7 +64,7 @@ CameraRigBA::CameraRigBA(CameraSystem& cameraSystem,
 /**
  *
  * @param beginStage      开始的帧
- * @param optimizeIntrinsics  是否标定内参
+ * @param optimizeIntrinsics  是否优化内参
  * @param saveWorkingData     是否保存工作数据
  * @param dataDir         保存工作数据的目录 /data
  */
@@ -76,7 +76,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
     // stage 3 - find local inter-camera 3D-3D correspondences
     // stage 4 - run BA
     // stage 5 - run fish-eye plane sweep to find ground plane height
-    // 第1阶段-利用mono-VO和run-BA的特征对应对三维点进行三角化
+    // 第1阶段-从mono-VO和run BA的对应特征点进行三角化
     // 第2阶段-运行鲁棒的位姿图SLAM，从回环中找到更inlier的2D-3D对应关系
     // 第3阶段-查找局部相机间3D-3D对应关系
     // 第4阶段-运行BA
@@ -84,12 +84,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
     if (m_verbose) // 默认为false
     {
-        //# INFO: # segments = 5
-        //# INFO:   Segment 0: # frame sets = 46
-        //# INFO:   Segment 1: # frame sets = 129
-        //# INFO:   Segment 2: # frame sets = 38
-        //# INFO:   Segment 3: # frame sets = 86
-        //# INFO:   Segment 4: # frame sets = 57
+        // # INFO:   Segment 0: # frame sets = 533  ??? 曾经有5个
         std::cout << "# INFO: # segments = " << m_graph.frameSetSegments().size() << std::endl;
         for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
         {
@@ -140,7 +135,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             double minError, maxError, avgError;
             size_t featureCount;
 
-            // // 计算重投影误差的最大最小平均误差，以及特征的数量
+            // 计算相机每一帧重投影误差的最大最小平均误差，以及特征的数量
             reprojectionError(minError, maxError, avgError, featureCount, CAMERA);
 
             // Reprojection error: avg = 0.30 px | max = 11.58 px | # obs = 90539
@@ -260,16 +255,17 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         }
     }
 
-    // stage 2
+    // stage 2 运行鲁棒的位姿图SLAM，从回环中找到更inlier的2D-3D对应关系
     if (beginStage <= 2)
     {
         if (m_verbose)
         {
             std::cout << "# INFO: Running robust pose graph optimization... " << std::endl;
         }
+        /// 运行的姿势图优化
 
-        // For each scene point, record its coordinates with respect to the
-        // first camera it was observed in.
+        // For each scene point, record its coordinates with respect to the first camera it was observed in.
+        /// 对于每个场景点，记录其相对于在其中观察到的第一个摄影机的坐标。
 
         boost::unordered_map<Point3DFeature*, Eigen::Vector3d, boost::hash<Point3DFeature*>, std::equal_to<Point3DFeature*>, Eigen::aligned_allocator<std::pair<Point3DFeature* const, Eigen::Vector3d> > > scenePointMap;
 
@@ -324,6 +320,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         poseGraph.optimize(true);
 
         // For each scene point, compute its new global coordinates.
+        /// 对于每个场景点，计算其新的全局坐标。
 
         boost::unordered_set<Point3DFeature*> scenePointSet;
         for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
@@ -444,6 +441,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
 
         std::cout << "# INFO: Running BA on odometry data... " << std::endl;
+        /// 在里程计数据上运行BA
 
         optimize(CAMERA_ODOMETRY_TRANSFORM | POINT_3D, true);
 
@@ -483,7 +481,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         }
     }
 
-    // stage 3
+    // stage 3 查找局部相机间3D-3D对应关系
     if (beginStage <= 3)
     {
         if (m_verbose)
@@ -639,11 +637,14 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         }
     }
 
+    // stage4 : 运行BA
     if (beginStage <= 4)
     {
+        // 为与多个摄影机观察到的场景点关联的特征观察指定更大的权重
         reweightScenePoints();
 
         // read chessboard data used for intrinsic calibration
+        ///  读取用于内部校准的棋盘数据
         bool isChessboardDataComplete = true;
 
         std::vector<boost::shared_ptr<CameraCalibration> > cameraCalibrations(m_cameraSystem.cameraCount());
@@ -656,6 +657,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             oss << m_cameraSystem.getCamera(i)->cameraName() << "_chessboard_data.dat";
             chessboardDataPath /= oss.str();
 
+            // 如果不存在棋盘格数据
             if (!cameraCalibrations.at(i)->readChessboardData(chessboardDataPath.string()))
             {
                 isChessboardDataComplete = false;
@@ -669,7 +671,8 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         }
 
         // perform BA to optimize intrinsics, extrinsics and scene points
-        if (optimizeIntrinsics)
+        ///  执行BA以优化内参、外参和场景点
+        if (optimizeIntrinsics) // 是否优化内参
         {
             std::cout << "# INFO: Running BA on odometry data -> optimize CAMERA_INTRINSICS | CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE | POINT_3D ..." << std::endl;
 
@@ -684,6 +687,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             optimize(CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE | POINT_3D, true);
         }
 
+        //
         prune(PRUNE_BEHIND_CAMERA | PRUNE_FARAWAY | PRUNE_HIGH_REPROJ_ERR, ODOMETRY);
 
         if (m_verbose)
@@ -691,6 +695,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             double minError, maxError, avgError;
             size_t featureCount;
 
+            // 计算重投影误差
             reprojectionError(minError, maxError, avgError, featureCount, ODOMETRY);
 
             std::cout << "# INFO: Done." << std::endl;
@@ -705,6 +710,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         visualizeExtrinsics("stage4-extrinsics");
 #endif
 
+        // 是否保存工作数据
         if (saveWorkingData)
         {
             boost::filesystem::path extrinsicPath(dataDir);
@@ -721,10 +727,11 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
         }
     }
 
+    // stage 5 运行鱼眼平面扫描以找到地平面高度
     if (beginStage <= 5)
     {
         // estimate ground height using plane sweep stereo
-        // 使用平面双目扫描估计地面高度
+        ///  使用平面双目扫描估计地面高度
         double zGround = 0.0;
         if (estimateAbsoluteGroundHeight(zGround))
         {
@@ -897,7 +904,7 @@ void CameraRigBA::frameReprojectionError(const FramePtr& frame,
 }
 
 /**
- *  计算重投影误差
+ *  计算相机每一帧重投影误差
  * @param minError 最小误差
  * @param maxError 最大误差
  * @param avgError 平均误差
@@ -1820,9 +1827,9 @@ CameraRigBA::matchFrameToFrame(FramePtr& frame1, FramePtr& frame2,
 // 修剪
 void CameraRigBA::prune(int flags, int poseType)
 {
-    // 相机位姿矩阵(Twc)
+    // 相机位姿矩阵(Toc)的集合
     std::vector<Pose, Eigen::aligned_allocator<Pose> > T_cam_odo(m_cameraSystem.cameraCount());
-    // 外参位姿矩阵 H(Tco)??
+    // 外参位姿矩阵 H(Tco)
     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > H_odo_cam(m_cameraSystem.cameraCount());
     for (int i = 0; i < m_cameraSystem.cameraCount(); ++i)
     {
@@ -1841,7 +1848,7 @@ void CameraRigBA::prune(int flags, int poseType)
     // 修剪太远或在相机后面的点
     // m_graph.frameSetSegments().size() : 5
 
-    // frameSetSegments(): 对帧的集合分批次集合的分批次集合的集合(批次的条件是什么？)
+    // frameSetSegments(): 批次的条件是什么？
     for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
     {
         FrameSetSegment& segment = m_graph.frameSetSegment(i);
@@ -1865,19 +1872,20 @@ void CameraRigBA::prune(int flags, int poseType)
                 // 当前帧的相机ID
                 int cameraId = frame->cameraId();
 
-                // 2d特征点(的匹配？)集合
+                // 该帧2d特征点集合
                 std::vector<Point2DFeaturePtr>& features2D = frame->features2D();
 
                 // 相机位姿
                 Eigen::Matrix4d H_cam = Eigen::Matrix4d::Identity();
                 if (poseType == CAMERA)
                 {
-                    // 该帧的相机位姿
+                    // 该帧的相机位姿 //怎么来的？
+                    //  Tcw = Tcw
                     H_cam = frame->cameraPose()->toMatrix();
                 }
                 else
                 {
-                    //
+                    // Tcw =  Tco × Tow
                     H_cam = H_odo_cam.at(cameraId) * frame->systemPose()->toMatrix().inverse();
                 }
 
@@ -1897,33 +1905,30 @@ void CameraRigBA::prune(int flags, int poseType)
 
                     bool prune = false;
 
-                    // 去掉相机后的点
                     if ((flags & PRUNE_BEHIND_CAMERA) &&
                         P_cam(2) < 0.0)
                     {
                         prune = true;
                     }
 
-                    // 去掉太远的点
                     if ((flags & PRUNE_FARAWAY) &&
                         P_cam.block<3,1>(0,0).norm() > k_maxPoint3DDistance)
                     {
                         prune = true;
                     }
 
-                    // 去掉高重投影误差的点
                     if (flags & PRUNE_HIGH_REPROJ_ERR)
                     {
                         double error = 0.0;
 
-                        if (poseType == CAMERA)
+                        if (poseType == CAMERA) // 如果位姿来源是相机
                         {
                             error = m_cameraSystem.getCamera(cameraId)->reprojectionError(pf->feature3D()->point(),
                                                                                           frame->cameraPose()->rotation(),
                                                                                           frame->cameraPose()->translation(),
                                                                                           Eigen::Vector2d(pf->keypoint().pt.x, pf->keypoint().pt.y));
                         }
-                        else
+                        else  // 如果位姿来源是里程计，需要先通过里程计获得相机的位姿
                         {
                             error = reprojectionError(m_cameraSystem.getCamera(cameraId),
                                                       pf->feature3D()->point(),
@@ -1940,9 +1945,11 @@ void CameraRigBA::prune(int flags, int poseType)
                         }
                     }
 
-                    if (prune)
+                    if (prune) //如果需要修剪
                     {
                         // delete entire feature track
+                        /// 删除整个特征轨迹
+
                         // 二维特征点对应的三维特征点的所有匹配的2D点
                         std::vector<Point2DFeatureWPtr> features2D = pf->feature3D()->features2D();
 
@@ -1950,7 +1957,7 @@ void CameraRigBA::prune(int flags, int poseType)
                         {
                             if (Point2DFeaturePtr feature2D = features2D.at(m).lock())
                             {
-                                // 置空？
+                                // 删除对应关系
                                 feature2D->feature3D() = Point3DFeaturePtr();
                             }
                         }
@@ -1974,22 +1981,22 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
     Eigen::Matrix3d sqrtOdometryPrecisionMat;
     sqrtOdometryPrecisionMat.setIdentity();
 
-    // 通过里程计位姿优化目标
-    if (flags & ODOMETRY_6D_POSE) // & 按位与
+    // 如果优化目标中包含ODOMETRY_6D_POSE
+    if (flags & ODOMETRY_6D_POSE)
     {
         // compute precision matrix for odometry data
-        // 计算里程计数据的精度矩阵
-        std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > errVec;
+        /// 计算里程计数据的精度矩阵
 
-        Eigen::Vector3d errMean = Eigen::Vector3d::Zero();
-        // 1
-        std::cout << "m_graph.frameSetSegments().size() : " << m_graph.frameSetSegments().size() << std::endl;
+        std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > errVec; //误差Vec
+
+        Eigen::Vector3d errMean = Eigen::Vector3d::Zero();   // 平均误差
+
+        // m_graph.frameSetSegments().size() : 1
         for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
         {
             FrameSetSegment& segment = m_graph.frameSetSegment(i);
 
-            // 501
-            std::cout << "segment.size() : " << segment.size() << std::endl;
+            //segment.size() : 501
             if (segment.size() <= 1)
             {
                 continue;
@@ -2007,7 +2014,7 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                 //  0.00   0.00   0.00   1.00
                 Eigen::Matrix4d H_odo_meas = frameSet->odometryMeasurement()->toMatrix().inverse() *
                                              frameSetPrev->odometryMeasurement()->toMatrix();
-                // TODO!
+
                 // H_err :
                 //1.00 0.00 0.00 0.00
                 //0.00 1.00 0.00 0.00
@@ -2016,14 +2023,12 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                 Eigen::Matrix4d H_err = H_odo_meas *
                                         frameSetPrev->systemPose()->toMatrix().inverse() *
                                         frameSet->systemPose()->toMatrix();
-                std::cout << "H_err : "<< std::endl << H_err.matrix() << std::endl;
 
                 // R_err :
                 //1.00 0.00 0.00
                 //0.00 1.00 0.00
                 //0.00 0.00 1.00
                 Eigen::Matrix3d R_err = H_err.block<3,3>(0,0);
-                std::cout << "R_err : " << std::endl << R_err.matrix() << std::endl;
                 double r, p, y;
 
                 // 旋转矩阵转变为欧拉角
@@ -2126,7 +2131,7 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                                                                             rvecs, tvecs);
                 std::cerr << "# INFO: "
                           << "[" << m_cameraSystem.getCamera(i)->cameraName()
-                          << "] Initial reprojection error (chessboard): "
+                          << "] Initial reprojection error (chessboard):  初始重投影错误（棋盘）"
                           << err << " pixels" << std::endl;
             }
         }
@@ -2241,7 +2246,7 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                                                                                     frame->systemPose()->attitude(),
                                                                                     Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y),
                                                                                     flags);
-
+                        // 向问题中添加误差项
                         problem.AddResidualBlock(costFunction, lossFunction,
                                                  feature3D->pointData());
 
@@ -2256,7 +2261,7 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                                                                                     Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y),
                                                                                     flags,
                                                                                     optimizeZ);
-
+                        // 向问题中添加误差项
                         problem.AddResidualBlock(costFunction, lossFunction,
                                                  T_cam_odo.at(cameraId).rotationData(),
                                                  T_cam_odo.at(cameraId).translationData(),
@@ -2274,6 +2279,7 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                                                                                     flags,
                                                                                     optimizeZ);
 
+                        // 向问题中添加误差项
                         problem.AddResidualBlock(costFunction, lossFunction,
                                                  T_cam_odo.at(cameraId).rotationData(),
                                                  T_cam_odo.at(cameraId).translationData(),
@@ -2293,6 +2299,7 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                                                                                     flags,
                                                                                     optimizeZ);
 
+                        // 向问题中添加误差项
                         problem.AddResidualBlock(costFunction, lossFunction,
                                                  intrinsicParams[cameraId].data(),
                                                  T_cam_odo.at(cameraId).rotationData(),
@@ -2310,6 +2317,7 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                                                                                     Eigen::Vector2d(feature2D->keypoint().pt.x, feature2D->keypoint().pt.y),
                                                                                     flags);
 
+                        // 向问题中添加误差项
                         problem.AddResidualBlock(costFunction, lossFunction,
                                                  frame->cameraPose()->rotationData(),
                                                  frame->cameraPose()->translationData(),
@@ -2367,6 +2375,7 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
                     new ceres::AutoDiffCostFunction<OdometryError, 3, 3, 3, 3, 3>(
                         new OdometryError(H_odo_meas, sqrtOdometryPrecisionMat));
 
+                // 向问题中添加误差项
                 problem.AddResidualBlock(costFunction, 0,
                                          frameSetPrev->systemPose()->positionData(),
                                          frameSetPrev->systemPose()->attitudeData(),
@@ -2378,7 +2387,6 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
         }
     }
 
-    /// @todo vec<vec<>> is slow! consider alternatives like boost::static_vector multiarray, or even an eigen matrix
     std::vector<std::vector<std::vector<double> > > chessboardCameraPoses(m_cameraSystem.cameraCount());
 
     if (includeChessboardData)
@@ -2439,7 +2447,9 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
         }
     }
 
+    // 优化信息
     ceres::Solver::Summary summary;
+    // 开始优化
     ceres::Solve(options, &problem, &summary);
 
     if (m_verbose)
@@ -2539,17 +2549,19 @@ void CameraRigBA::optimize(int flags, bool optimizeZ, int nIterations)
     }
 }
 
-void
-CameraRigBA::reweightScenePoints(void)
+void CameraRigBA::reweightScenePoints(void)
 {
     // Assign high weights to feature observations associated with scene points
     // observed by multiple cameras.
     // Note that the observation condition only applies to scene points
     // *locally* observed by multiple cameras.
+    /// 为与多个摄影机观察到的场景点关联的特征观察指定更大的权重。请注意，观察条件仅适用于多个摄影机在局部观察到的场景点。
 
-    size_t nObs = 0;
-    size_t nObsMultipleCams = 0;
-    boost::unordered_set<Point3DFeature*> scenePointSet;
+    size_t nObs = 0;                // 观察到的场景点个数
+    size_t nObsMultipleCams = 0;    // 多个相机共同观察到的场景点个数
+    boost::unordered_set<Point3DFeature*> scenePointSet; // 场景三维点的集合
+
+    /// 明确多相机观测三维点的总数 / （场景可观测三维点的总数 - 多相机观测三维点的总数）获取总的权重阈值
     for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
     {
         FrameSetSegment& segment = m_graph.frameSetSegment(i);
@@ -2571,8 +2583,10 @@ CameraRigBA::reweightScenePoints(void)
 
                 for (size_t l = 0; l < features2D.size(); ++l)
                 {
+                    //   如果2维特征点有对应三维点
                     if (features2D.at(l)->feature3D().get() != 0)
                     {
+                        // 如果该三维点可以被不同相机观测到
                         if (features2D.at(l)->feature3D()->attributes() & Point3DFeature::LOCALLY_OBSERVED_BY_DIFFERENT_CAMERAS)
                         {
                             ++nObsMultipleCams;
@@ -2594,9 +2608,12 @@ CameraRigBA::reweightScenePoints(void)
     }
     else
     {
+        // 权重 = 多相机观测三维点的总数 / （场景可观测三维点的总数 - 多相机观测三维点的总数）
         weightS = static_cast<double>(nObsMultipleCams) / static_cast<double>(nObs - nObsMultipleCams);
     }
 
+
+    // 对每个地图点设置阈值
     for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
     {
         FrameSetSegment& segment = m_graph.frameSetSegment(i);
@@ -2625,6 +2642,7 @@ CameraRigBA::reweightScenePoints(void)
                         continue;
                     }
 
+                    // 被多个相机同时观测到的场景点赋值权重为1,但相机观测的权重赋值为 多相机观测三维点的总数 / （场景可观测三维点的总数 - 多相机观测三维点的总数）
                     if (feature3D->attributes() & Point3DFeature::LOCALLY_OBSERVED_BY_DIFFERENT_CAMERAS)
                     {
                         feature3D->weight() = 1.0;
@@ -2643,6 +2661,7 @@ CameraRigBA::reweightScenePoints(void)
         std::cout << "# INFO: Assigned weight of " << weightS
                   << " to scene points observed by a single camera."
                   << std::endl;
+        //为单个摄影机观察到的场景点指定 .. 权重
     }
 }
 

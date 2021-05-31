@@ -185,6 +185,7 @@ CamOdoThread::signalFinished(void)
 // TODO 进程
 void CamOdoThread::threadFunction(void)
 {
+    // 生成临时跟踪器
     TemporalFeatureTracker tracker(m_camera,
                                    SURF_GPU_DETECTOR, SURF_GPU_DESCRIPTOR,
                                    RATIO_GPU, m_preprocess, m_camOdoTransform);
@@ -216,33 +217,36 @@ void CamOdoThread::threadFunction(void)
             timeout = boost::get_system_time() + boost::posix_time::milliseconds(10);
         }
 
-        if (m_stop)
+        if (m_stop) // 与跟踪失败有关
         {
-            // 相机位姿
+            // 获得相机位姿
             std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > voPoses = tracker.getPoses();
 
             if (odometryPoses.size() >= k_minVOSegmentSize) // 如果里程计位姿的维度大于等于最小VO分割尺度
             {
-                // 添加m_frameSegments 数据（相机，里程计位姿） // 回档
+                // 添加m_frameSegments 数据（相机，里程计位姿）
                 addCamOdoCalibData(voPoses, odometryPoses, tracker.getFrames());
             }
 
+            // 如果里程计位姿不为空，跟踪失败的位姿都删去
             if (!odometryPoses.empty())
             {
                 odometryPoses.erase(odometryPoses.begin(), odometryPoses.begin() + voPoses.size() - 1);
             }
 
-            ++trackBreaks;
+            ++trackBreaks; // 跟踪失败+1
 
             halt = true;
         }
-        else
+        else // !m_stop
         {
-            m_image->lockData();
+            m_image->lockData(); // 加锁××××××××××××××××××××××××××××
             m_image->available() = false;
 
+            // 图像的时间戳
             uint64_t timeStamp = m_image->timeStamp();
 
+            // 如果图像上一帧的时间戳和当前帧相同
             if (framePrev.get() != 0 && timeStamp == framePrev->cameraPose()->timeStamp())
             {
                 m_image->unlockData();
@@ -253,7 +257,7 @@ void CamOdoThread::threadFunction(void)
 
             m_image->data().copyTo(image);
 
-            m_image->unlockData();
+            m_image->unlockData();  // 解锁××××××××××××××××××××××××××××
 
             if (image.channels() == 1)
             {
@@ -267,16 +271,11 @@ void CamOdoThread::threadFunction(void)
             // skip if current car position is too near previous position
             // 如果当前车辆位置太接近上一个位置，则跳过
             OdometryPtr currOdometry;
-            PosePtr currGpsIns;
             Eigen::Vector2d pos;
 
             if (m_poseSource == ODOMETRY && !m_odometryBuffer.current(currOdometry))
             {
                 std::cout << "# WARNING: No data in odometry buffer." << std::endl;
-            }
-            else if (m_poseSource == GPS_INS && !m_gpsInsBuffer.current(currGpsIns))
-            {
-                std::cout << "# WARNING: No data in GPS/INS buffer." << std::endl;
             }
             else
             {
@@ -287,6 +286,8 @@ void CamOdoThread::threadFunction(void)
                 if (m_poseSource == ODOMETRY && !m_interpOdometryBuffer.find(timeStamp, interpOdo))
                 {
                     double timeStart = timeInSeconds();
+
+                    // 插值里程计信息失败
                     while (!interpolateOdometry(m_odometryBuffer, timeStamp, interpOdo))
                     {
                         if (timeInSeconds() - timeStart > k_odometryTimeout)
@@ -298,44 +299,17 @@ void CamOdoThread::threadFunction(void)
                         usleep(1000);
                     }
 
+
                     m_interpOdometryBuffer.push(timeStamp, interpOdo);
                 }
 
                 m_odometryBufferMutex.unlock();
 
-                m_gpsInsBufferMutex.lock();
-
-                PosePtr interpGpsIns;
-                if ((m_poseSource == GPS_INS || !m_gpsInsBuffer.empty()) && !m_interpGpsInsBuffer.find(timeStamp, interpGpsIns))
-                {
-                    double timeStart = timeInSeconds();
-                    while (!interpolatePose(m_gpsInsBuffer, timeStamp, interpGpsIns))
-                    {
-                        if (timeInSeconds() - timeStart > k_odometryTimeout)
-                        {
-                            std::cout << "# ERROR: No GPS/INS data for " << k_odometryTimeout << "s. Exiting..." << std::endl;
-                            exit(1);
-                        }
-
-                        usleep(1000);
-                    }
-
-                    printf("LOC: %f %f %f\n", interpGpsIns->translation()[0], interpGpsIns->translation()[1], interpGpsIns->translation()[2]);
-                    m_interpGpsInsBuffer.push(timeStamp, interpGpsIns);
-                }
-
-                m_gpsInsBufferMutex.unlock();
 
                 Eigen::Vector3d pos;
                 if (m_poseSource == ODOMETRY)
                 {
                     pos = interpOdo->position();
-                }
-                else
-                {
-                    pos(0) = interpGpsIns->translation()(1);
-                    pos(1) = -interpGpsIns->translation()(0);
-                    pos(2) = interpGpsIns->translation()(2);
                 }
 
                 if (framePrev.get() != 0 &&
@@ -345,22 +319,11 @@ void CamOdoThread::threadFunction(void)
                     continue;
                 }
 
-                /*if (framePrev.get())
-                {
-                    static boost::mutex mmutex;
-                    boost::mutex::scoped_lock lock(mmutex);
-
-                    std::cout << "FRAME " << timeStamp << " -> mov=" << (pos - framePrev->systemPose()->position()).norm()
-                              << ", POS=(" << pos.transpose() << ") PREVPOS=(" << framePrev->systemPose()->position().transpose() << ")" << std::endl;
-                }*/
-
                 FramePtr frame = boost::make_shared<Frame>();
                 frame->cameraId() = m_cameraId;
                 image.copyTo(frame->image());
 
                 bool camValid = tracker.addFrame(frame, m_camera->mask());
-
-                // tag frame with odometry and GPS/INS data
 
                 if (interpOdo)
                 {
@@ -368,30 +331,6 @@ void CamOdoThread::threadFunction(void)
                     *(frame->odometryMeasurement()) = *interpOdo;
                     frame->systemPose() = boost::make_shared<Odometry>();
                     *(frame->systemPose()) = *interpOdo;
-                }
-
-                if (interpGpsIns)
-                {
-                    frame->gpsInsMeasurement() = interpGpsIns;
-                }
-
-                if (m_poseSource == GPS_INS)
-                {
-                    OdometryPtr gpsIns = boost::make_shared<Odometry>();
-                    gpsIns->timeStamp() = interpGpsIns->timeStamp();
-                    gpsIns->x() = interpGpsIns->translation()(1);
-                    gpsIns->y() = -interpGpsIns->translation()(0);
-                    gpsIns->z() = interpGpsIns->translation()(2);
-
-                    Eigen::Matrix3d R = interpGpsIns->rotation().toRotationMatrix();
-                    double roll, pitch, yaw;
-                    mat2RPY(R, roll, pitch, yaw);
-                    gpsIns->yaw() = -yaw;
-
-                    frame->odometryMeasurement() = boost::make_shared<Odometry>();
-                    *(frame->odometryMeasurement()) = *gpsIns;
-                    frame->systemPose() = boost::make_shared<Odometry>();
-                    *(frame->systemPose()) = *gpsIns;
                 }
 
                 frame->cameraPose()->timeStamp() = timeStamp;

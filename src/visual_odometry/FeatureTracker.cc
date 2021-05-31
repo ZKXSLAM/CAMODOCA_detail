@@ -499,6 +499,7 @@ TemporalFeatureTracker::TemporalFeatureTracker(const CameraConstPtr& camera,
 bool
 TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
 {
+    // 把图像帧的通道变为1赋值给m_image
     if (frame->image().channels() > 1)
     {
         cv::cvtColor(frame->image(), m_image, CV_BGR2GRAY);

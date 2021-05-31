@@ -27,6 +27,20 @@ protected:
 
 
 // Input should be a vector of n 2D points or a Nx2 matrix
+// 输入应该是n个2D点的向量或Nx2矩阵
+/**
+ * 计算本质矩阵
+ * @param _points1   图1矫正后特征点
+ * @param _points2   图2矫正后特征点（与图1特征点匹配）
+ * @param focal      焦距
+ * @param pp
+ * @param method     寻找本质矩阵方法
+ * @param prob
+ * @param threshold   阈值
+ * @param maxIters    最大迭代次数
+ * @param _mask
+ * @return
+ */
 Mat findEssentialMat( InputArray _points1, InputArray _points2, double focal, Point2d pp, 
 					int method, double prob, double threshold, int maxIters, OutputArray _mask) 
 {
@@ -86,6 +100,18 @@ Mat findEssentialMat( InputArray _points1, InputArray _points2, double focal, Po
 
 }
 
+/**
+ * 从本质矩阵中恢复出位姿
+ * @param E 本质矩阵
+ * @param _points1  图1矫正后的特征点
+ * @param _points2  图2矫正后的特征点
+ * @param _R 恢复出的旋转矩阵
+ * @param _t 恢复出的平移矩阵
+ * @param focal 焦距
+ * @param pp
+ * @param _mask
+ * @return
+ */
 int recoverPose( const Mat & E, InputArray _points1, InputArray _points2, Mat & _R, Mat & _t, 
 					double focal, Point2d pp, 
 					InputOutputArray _mask) 
@@ -113,7 +139,8 @@ int recoverPose( const Mat & E, InputArray _points1, InputArray _points2, Mat & 
 	points1 = points1.t(); 
 	points2 = points2.t(); 
 	
-	Mat R1, R2, t; 
+	Mat R1, R2, t;
+	// 恢复出R12，R21，t12（顺序依据本次代码逻辑）
 	decomposeEssentialMat(E, R1, R2, t); 
 	Mat P0 = Mat::eye(3, 4, R1.type()); 
 	Mat P1(3, 4, R1.type()), P2(3, 4, R1.type()), P3(3, 4, R1.type()), P4(3, 4, R1.type()); 
@@ -122,14 +149,16 @@ int recoverPose( const Mat & E, InputArray _points1, InputArray _points2, Mat & 
 	P3(Range::all(), Range(0, 3)) = R1 * 1.0; P3.col(3) = -t * 1.0; 
 	P4(Range::all(), Range(0, 3)) = R2 * 1.0; P4.col(3) = -t * 1.0; 
 
-	// Do the cheirality check. 
-	// Notice here a threshold dist is used to filter
-	// out far away points (i.e. infinite points) since 
-	// there depth may vary between postive and negtive. 
+	// Do the cheirality check. Notice here a threshold dist is used to filter
+	// out far away points (i.e. infinite points) since there depth may vary between postive and negtive.
+	/// 做检查。请注意，这里使用阈值距离来过滤远处的点（即无限点），因为深度可能在正和负之间变化。
+
 	double dist1 = 1.0, dist = 1000.0;
-	Mat Q; 
-	triangulatePoints(P0, P1, points1, points2, Q); 
-	Mat mask1 = Q.row(2).mul(Q.row(3)) > 0; 
+	Mat Q;
+	// 对匹配对应点做三角化
+	triangulatePoints(P0, P1, points1, points2, Q);
+
+	Mat mask1 = Q.row(2).mul(Q.row(3)) > 0;
 	Q.row(0) /= Q.row(3); 
 	Q.row(1) /= Q.row(3); 
 	Q.row(2) /= Q.row(3); 

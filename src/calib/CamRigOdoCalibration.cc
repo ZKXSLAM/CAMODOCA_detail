@@ -218,7 +218,6 @@ void CamRigOdoCalibration::start(void)
 
         for (size_t i = 0; i < m_cameras.size(); ++i)
         {
-            // debuging ...
             cv::destroyWindow(m_cameras.at(i)->cameraName());
         }
 

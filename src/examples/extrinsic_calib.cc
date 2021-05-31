@@ -80,15 +80,15 @@ int main(int argc, char** argv)
         ("camera-count", boost::program_options::value<int>(&cameraCount)->default_value(1), "Number of cameras in rig.")
         ("f", boost::program_options::value<float>(&focal)->default_value(300.0f), "Nominal focal length.")
         ("output,o", boost::program_options::value<std::string>(&outputDir)->default_value("calibration_data"), "Directory to write calibration data to.")
-        ("motions,m", boost::program_options::value<int>(&nMotions)->default_value(500), "Number of motions for calibration.")
+        ("motions,m", boost::program_options::value<int>(&nMotions)->default_value(1400), "Number of motions for calibration.")
         ("begin-stage", boost::program_options::value<int>(&beginStage)->default_value(0), "Stage to begin from.")
         ("preprocess", boost::program_options::bool_switch(&preprocessImages)->default_value(false), "Preprocess images.")
         ("optimize-intrinsics", boost::program_options::bool_switch(&optimizeIntrinsics)->default_value(false), "Optimize intrinsics in BA step.")
         ("data", boost::program_options::value<std::string>(&dataDir)->default_value("data"), "Location of folder which contains working data.")
         ("input", boost::program_options::value<std::string>(&inputDir)->default_value("input"), "Location of the folder containing all input data. Files must be named camera_%02d_%05d.png. In case if event file is specified, this is the path where to find frame_X/ subfolders")
         ("event", boost::program_options::value<std::string>(&eventFile)->default_value(std::string("")), "Event log file to be used for frame and pose events.")
-        ("ref-height", boost::program_options::value<float>(&refCameraGroundHeight)->default_value(0), "Height of the reference camera (cam=0) above the ground (cameras extrinsics will be relative to the reference camera)")
-        ("keydist", boost::program_options::value<float>(&keyframeDistance)->default_value(0.4), "Distance of rig to be traveled before taking a keyframe (distance is measured by means of odometry poses)")
+        ("ref-height", boost::program_options::value<float>(&refCameraGroundHeight)->default_value(1), "Height of the reference camera (cam=0) above the ground (cameras extrinsics will be relative to the reference camera)")
+        ("keydist", boost::program_options::value<float>(&keyframeDistance)->default_value(0.2), "Distance of rig to be traveled before taking a keyframe (distance is measured by means of odometry poses)")
         ("verbose,v", boost::program_options::bool_switch(&verbose)->default_value(false), "Verbose output")
         ;
     // variables_map(选项存储器),用于存储解析后的选项
@@ -146,10 +146,12 @@ int main(int argc, char** argv)
     // read extrinsic estimates
     // 相当于map<unsigned,Eigen::Matrix4d> estimate;只是eigen需要利用Eigen::aligned_allocator重新对齐
     std::map<unsigned, Eigen::Matrix4d, std::less<unsigned>, Eigen::aligned_allocator<std::pair<const unsigned, Eigen::Matrix4d> > > estimates;
-    // 如果存在外参估计文件
+
+    // 如果存在外参估计文件 --estimate
     if (odoEstimateFile.length())
     {
         std::cout << "# INFO: parse extrinsic calibration estimates file " << odoEstimateFile << std::endl;
+        /// 解析外部校准估计文件
 
         std::ifstream file(odoEstimateFile);
         if (file.is_open())
@@ -177,12 +179,12 @@ int main(int argc, char** argv)
 
 
     //========================= Get all files  =========================
-    typedef std::map<int64_t, std::string>  ImageMap;// <时间戳，第几个相机？？？路径>
+    typedef std::map<int64_t, std::string>  ImageMap;// <时间戳，图像路径>
 
     // 相当于 typedef map<int64_t,Eigen::Isometry3f> IsometryMap;  <时间戳，里程计位姿T>
     typedef std::map<int64_t, Eigen::Isometry3f, std::less<int64_t>, Eigen::aligned_allocator<std::pair<const int64_t, Eigen::Isometry3f> > > IsometryMap;
 
-    std::vector< ImageMap > inputImages(cameraCount); //vector<时间戳，第几个相机> 存储图像文件的路径
+    std::vector< ImageMap > inputImages(cameraCount); //vector<时间戳，图像路径> size = 相机个数
     IsometryMap inputOdometry; // 由输入文件获得的里程计的位姿T的map，由时间戳索引 <时间戳，里程计位姿T>
     bool bUseGPS = false;
     // 没有event文件
@@ -294,9 +296,10 @@ int main(int argc, char** argv)
     //void CamOdoThread::threadFunction(void)
     std::thread inputThread([&inputImages, &inputOdometry, &camRigOdoCalib, cameraCount, bUseGPS]()
     {
-        //uint64_t lastTimestamp = std::numeric_limits<uint64_t>::max();
+        std::vector<size_t>camera_num(cameraCount);
+        size_t odom_num =0;
 
-        // 图像迭代器的集合（每个相机一个迭代器） // ImageMap : <时间戳，第几个相机>
+        // 图像迭代器的集合（每个相机一个迭代器） // ImageMap : <时间戳，图像路径>
         std::vector<ImageMap::iterator> camIterator(cameraCount);
         // 里程计迭代器
         IsometryMap::iterator locIterator = inputOdometry.begin();
@@ -304,9 +307,10 @@ int main(int argc, char** argv)
         for (int c=0; c < cameraCount; c++)
             camIterator[c] = inputImages[c].begin();
 
+        //  在没有GPS的时候，将里程计的平移，yaw角和时间戳添加到camRigOdoCalib中
         auto addLocation = [&camRigOdoCalib, bUseGPS](uint64_t timestamp, const Eigen::Isometry3f& T)
         {
-            if (bUseGPS)
+            /*if (bUseGPS)
             {
                 Eigen::Quaternionf q(T.rotation());
                 Eigen::Vector3f gps = T.translation();
@@ -315,7 +319,7 @@ int main(int argc, char** argv)
                 std::cout << "GPS: lat=" << gps[0] << ", lon=" << gps[1] << ", alt=" << gps[2]
                           << ", qx=" << q.x() << ", qy=" << q.y() << ", qz=" << q.z() << ", qw=" << q.w()
                           << " [" << timestamp << "]" << std::endl;
-            }else //没有使用GPS
+            }else //没有使用GPS*/
             {
                 // Eigen::Transform::linear() : 返回变换矩阵T的旋转矩阵部分
                 /**    r1   r2   r3
@@ -349,7 +353,7 @@ int main(int argc, char** argv)
 
 
             // now add image and location data, but such that location data is always fresher than camera data
-            // 现在添加图像和位置数据，位置数据总是比相机数据更加新
+            // 现在添加图像和位置数据，保证位置数据总是比相机数据更fresh
             bool hasData = true;
             while(hasData)
             {
@@ -365,6 +369,7 @@ int main(int argc, char** argv)
                         uint64_t camTime = camIterator[c]->first;
                         // IMG: 1620458322702547 -> /home/zoukaixiang/code/Nullmax_data/extract/camera_0_1620458322702547.png
                         std::cout << "IMG: " << camTime << " -> " << camIterator[c]->second << std::endl;
+                        camera_num[c]++;
                         // Pose : 1620458322704937         // 时间戳
                         // -0.47244 -0.881363         0    // 旋转矩阵
                         // 0.881363  -0.47244         0
@@ -379,8 +384,10 @@ int main(int argc, char** argv)
 
             locIterator++;
         }
-
-
+        for (int c=0; c < cameraCount; c++) //camera_num[c]764
+        {
+            std::cout << "camera_num[" << c << "]"  << camera_num[c]  <<std::endl;
+        }
 
         if (!camRigOdoCalib.isRunning())
         { camRigOdoCalib.run();}

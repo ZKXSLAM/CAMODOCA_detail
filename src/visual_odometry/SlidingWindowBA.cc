@@ -86,7 +86,8 @@ SlidingWindowBA::addFrame(FramePtr& frame)
     // find feature correspondences between previous and current frames
     /// 查找上一帧和当前帧之间的特征对应
 
-    std::vector<std::vector<Point2DFeaturePtr> > featureCorrespondences;
+    std::vector<std::vector<Point2DFeaturePtr> > featureCorrespondences; //2d匹配特征点的集合
+    // 把满足要求的匹配点 存放到 2d匹配特征点的集合
     findFeatureCorrespondences(frameCurr->features2D(), 2, featureCorrespondences);
 
     for (size_t i = 0; i < framePrev->features2D().size(); ++i)
@@ -104,14 +105,18 @@ SlidingWindowBA::addFrame(FramePtr& frame)
         std::cout << "# INFO: Found " << featureCorrespondences.size() << " feature correspondences in last 2 frames." << std::endl;
     }
 
+    // 如果是初始的前两帧
     if (m_frameCount == 2)
     {
         // compute pose in frame 1 relative to frame 0
         /// 计算帧1中相对于帧0的位姿
 
         std::vector<cv::Point2f> imagePoints[2];
+
+
         for (size_t i = 0; i < featureCorrespondences.size(); ++i)
         {
+            //对于每一对匹配点对
             std::vector<Point2DFeaturePtr>& fc = featureCorrespondences.at(i);
 
             for (size_t j = 0; j < fc.size(); ++j)
@@ -120,6 +125,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
             }
         }
 
+        // 如果2D-2D匹配数量不足
         if ((int)imagePoints[0].size() < k_min2D2DFeatureCorrespondences)
         {
             if (m_verbose)
@@ -134,6 +140,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
         std::vector<cv::Point2f> rectImagePoints[2];
         for (size_t i = 0; i < 2; ++i)
         {
+            // 图像点矫正》？
             rectifyImagePoints(k_camera, imagePoints[i], rectImagePoints[i]);
         }
 
@@ -141,8 +148,10 @@ SlidingWindowBA::addFrame(FramePtr& frame)
         if (m_mode == VO)
         {
             cv::Mat E, R_cv, t_cv;
+            // 找到两帧之间本质矩阵
             E = findEssentialMat(rectImagePoints[0], rectImagePoints[1], 1.0, cv::Point2d(0.0, 0.0),
                                  CV_FM_RANSAC, 0.99, k_reprojErrorThresh / k_nominalFocalLength, 100, inliers);
+            // 从本质矩阵中恢复出位姿
             recoverPose(E, rectImagePoints[0], rectImagePoints[1], R_cv, t_cv, 1.0, cv::Point2d(0.0, 0.0), inliers);
 
             if (m_verbose)
@@ -377,6 +386,8 @@ SlidingWindowBA::addFrame(FramePtr& frame)
         }
 
         // use epipolar constraint to remove outlier 2D-2D correspondences
+        /// 使用极线约束删除异常2D-2D对应
+
         Eigen::Matrix4d H_rel = frameCurr->cameraPose()->toMatrix() * framePrev->cameraPose()->toMatrix().inverse();
         Eigen::Matrix3d R_rel = H_rel.block<3,3>(0,0);
         Eigen::Vector3d t_rel = H_rel.block<3,1>(0,3);
@@ -406,6 +417,8 @@ SlidingWindowBA::addFrame(FramePtr& frame)
         }
 
         // triangulate new feature correspondences seen in last 2 frames
+        /// 三角化最近2帧中看到的新特征对应
+
         std::vector<cv::Point2f> ipoints[2];
 
         for (size_t i = 0; i < untriFeatureCorrespondences.size(); ++i)
@@ -512,6 +525,8 @@ SlidingWindowBA::addFrame(FramePtr& frame)
     }
 
     // perform BA to optimize camera poses and scene points
+    ///执行BA以优化相机姿势和场景点
+
     if (runOptimization)
     {
         optimize();
@@ -584,6 +599,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
     {
         if (nPrunedScenePoints > 0)
         {
+            // 修剪。。。重投影错误太高的场景点。
             std::cout << "# INFO: Pruned " << nPrunedScenePoints << " scene points that had too high reprojection errors." << std::endl;
         }
 
@@ -851,9 +867,13 @@ SlidingWindowBA::reprojectionError(const Eigen::Vector3d& P,
 
     return k_camera->reprojectionError(P, cam_q, cam_t, observed_p);
 }
-
-void
-SlidingWindowBA::findFeatureCorrespondences(const std::vector<Point2DFeaturePtr>& features,
+/**
+ * 把满足要求的匹配点 存放到 2d匹配特征点的集合
+ * @param features  当前帧的特征点
+ * @param nViews
+ * @param correspondences 2d匹配特征点的集合
+ */
+void SlidingWindowBA::findFeatureCorrespondences(const std::vector<Point2DFeaturePtr>& features,
                                             int nViews,
                                             std::vector<std::vector<Point2DFeaturePtr> >& correspondences) const
 {
@@ -867,6 +887,7 @@ SlidingWindowBA::findFeatureCorrespondences(const std::vector<Point2DFeaturePtr>
 
     correspondences.reserve(features.size());
 
+    // 遍历所有的特征点
     for (size_t i = 0; i < features.size(); ++i)
     {
         std::vector<Point2DFeaturePtr> pt(nViews);
@@ -899,6 +920,7 @@ SlidingWindowBA::findFeatureCorrespondences(const std::vector<Point2DFeaturePtr>
         bool rejectCorrespondence = false;
         for (int j = 0; j < nViews - 1; ++j)
         {
+            // 前后帧匹配关键点的欧式距离比最小阈值还要小，则拒绝
             if (cv::norm(pt[j]->keypoint().pt - pt[j + 1]->keypoint().pt) < k_minDisparity)
             {
                 rejectCorrespondence = true;
@@ -917,6 +939,7 @@ SlidingWindowBA::findFeatureCorrespondences(const std::vector<Point2DFeaturePtr>
             correspondence.at(j) = pt[j];
         }
 
+        // 把满足要求的匹配点 存放到 2d匹配特征点的集合
         correspondences.push_back(correspondence);
     }
 }

@@ -80,7 +80,7 @@ private:
     CamOdoCalibration m_camOdoCalib;
     std::vector<std::vector<FramePtr> > m_frameSegments;
 
-    AtomicData<cv::Mat>* m_image;
+    AtomicData<cv::Mat>* m_image;    // 某一帧的图像
     const CameraConstPtr m_camera;   // 相机指针
     SensorDataBuffer<OdometryPtr>& m_odometryBuffer;
     SensorDataBuffer<OdometryPtr>& m_interpOdometryBuffer;
