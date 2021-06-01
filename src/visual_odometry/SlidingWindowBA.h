@@ -91,8 +91,8 @@ private:
     size_t m_frameCount; // 添加帧的总数
     bool m_verbose;
 
-    const int k_min2D2DFeatureCorrespondences;
-    const int k_min2D3DFeatureCorrespondences;
+    const int k_min2D2DFeatureCorrespondences;  // 用于BA初始化的2D-2D的最小特征点对应数量
+    const int k_min2D3DFeatureCorrespondences;  // 用于BA初始化的2D-3D的最小特征点对应数量
 };
 
 }

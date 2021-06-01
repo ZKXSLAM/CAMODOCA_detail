@@ -133,7 +133,7 @@ public:
     std::string parametersToString(void) const;
 
 private:
-    Parameters mParameters;
+    Parameters mParameters; // mParameters(cameraName, imageWidth, imageHeight, xi, k1, k2, p1, p2, gamma1, gamma2, u0, v0)
 
     double m_inv_K11, m_inv_K13, m_inv_K22, m_inv_K23;
     bool m_noDistortion;

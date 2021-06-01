@@ -30,8 +30,8 @@ rectifyImagePoint(const CameraConstPtr& camera,
     dst = P.block<2,1>(0,0);
 }
 
-void
-rectifyImagePoints(const CameraConstPtr& camera,
+// 去畸变
+void rectifyImagePoints(const CameraConstPtr& camera,
                    const std::vector<cv::Point2f>& src,
                    std::vector<cv::Point2f>& dst)
 {

@@ -288,7 +288,7 @@ PinholeCamera::PinholeCamera(const std::string& cameraName,
         m_noDistortion = false;
     }
 
-    // Inverse camera projection matrix parameters
+    // Inverse camera projection matrix parameters  逆相机投影矩阵参数
     m_inv_K11 = 1.0 / mParameters.fx();
     m_inv_K13 = -mParameters.cx() / mParameters.fx();
     m_inv_K22 = 1.0 / mParameters.fy();
@@ -427,33 +427,33 @@ PinholeCamera::estimateIntrinsics(const cv::Size& boardSize,
 }
 
 /**
- * \brief Lifts a point from the image plane to the unit sphere
+ * \brief Lifts a point from the image plane to the unit sphere 将点从图像平面提升到单位球体
  *
- * \param p image coordinates
+ * \param p image coordinates  图像坐标
  * \param P coordinates of the point on the sphere
  */
 void
 PinholeCamera::liftSphere(const Eigen::Vector2d& p, Eigen::Vector3d& P) const
 {
-    liftProjective(p, P);
+    liftProjective(p, P); // 把像素坐标系转换到相机坐标系
 
     P.normalize();
 }
 
 /**
- * \brief Lifts a point from the image plane to its projective ray
+ * 把像素坐标系转换到相机坐标系
+ * \brief Lifts a point from the image plane to its projective ray  将点从图像平面提升到其投影光线
  *
  * \param p image coordinates
- * \param P coordinates of the projective ray
+ * \param P coordinates of the projective ray  射影射线的坐标
  */
 void
 PinholeCamera::liftProjective(const Eigen::Vector2d& p, Eigen::Vector3d& P) const
 {
     double mx_d, my_d,mx2_d, mxy_d, my2_d, mx_u, my_u;
     double rho2_d, rho4_d, radDist_d, Dx_d, Dy_d, inv_denom_d;
-    //double lambda;
 
-    // Lift points to normalised plane
+    // Lift points to normalised plane  // 将点投影到归一化文件
     mx_d = m_inv_K11 * p(0) + m_inv_K13;
     my_d = m_inv_K22 * p(1) + m_inv_K23;
 
@@ -464,48 +464,25 @@ PinholeCamera::liftProjective(const Eigen::Vector2d& p, Eigen::Vector3d& P) cons
     }
     else
     {
-        if (0)
-        {
-            double k1 = mParameters.k1();
-            double k2 = mParameters.k2();
-            double p1 = mParameters.p1();
-            double p2 = mParameters.p2();
+        // Recursive distortion model  递归失真模型
+        int n = 8;
+        Eigen::Vector2d d_u;
+        distortion(Eigen::Vector2d(mx_d, my_d), d_u); // 去畸变
+        // Approximate value
+        mx_u = mx_d - d_u(0);
+        my_u = my_d - d_u(1);
 
-            // Apply inverse distortion model
-            // proposed by Heikkila
-            mx2_d = mx_d*mx_d;
-            my2_d = my_d*my_d;
-            mxy_d = mx_d*my_d;
-            rho2_d = mx2_d+my2_d;
-            rho4_d = rho2_d*rho2_d;
-            radDist_d = k1*rho2_d+k2*rho4_d;
-            Dx_d = mx_d*radDist_d + p2*(rho2_d+2*mx2_d) + 2*p1*mxy_d;
-            Dy_d = my_d*radDist_d + p1*(rho2_d+2*my2_d) + 2*p2*mxy_d;
-            inv_denom_d = 1/(1+4*k1*rho2_d+6*k2*rho4_d+8*p1*my_d+8*p2*mx_d);
-
-            mx_u = mx_d - inv_denom_d*Dx_d;
-            my_u = my_d - inv_denom_d*Dy_d;
-        }
-        else
+        for (int i = 1; i < n; ++i)
         {
-            // Recursive distortion model
-            int n = 8;
-            Eigen::Vector2d d_u;
-            distortion(Eigen::Vector2d(mx_d, my_d), d_u);
-            // Approximate value
+            distortion(Eigen::Vector2d(mx_u, my_u), d_u);
             mx_u = mx_d - d_u(0);
             my_u = my_d - d_u(1);
-
-            for (int i = 1; i < n; ++i)
-            {
-                distortion(Eigen::Vector2d(mx_u, my_u), d_u);
-                mx_u = mx_d - d_u(0);
-                my_u = my_d - d_u(1);
-            }
         }
+
     }
 
-    // Obtain a projective ray
+    // Obtain a projective ray 获得射影射线
+    // 把像素坐标系转换到相机坐标系
     P << mx_u, my_u, 1.0;
 }
 
@@ -637,9 +614,10 @@ PinholeCamera::undistToPlane(const Eigen::Vector2d& p_u, Eigen::Vector2d& p) con
 }
 
 /**
+ * 去畸变
  * \brief Apply distortion to input point (from the normalised plane)
  *
- * \param p_u undistorted coordinates of point on the normalised plane
+ * \param p_u undistorted coordinates of point on the normalised plane 归一化平面上点的无畸变坐标
  * \return to obtain the distorted point: p_d = p_u + d_u
  */
 void
@@ -652,12 +630,13 @@ PinholeCamera::distortion(const Eigen::Vector2d& p_u, Eigen::Vector2d& d_u) cons
 
     double mx2_u, my2_u, mxy_u, rho2_u, rad_dist_u;
 
-    mx2_u = p_u(0) * p_u(0);
-    my2_u = p_u(1) * p_u(1);
-    mxy_u = p_u(0) * p_u(1);
-    rho2_u = mx2_u + my2_u;
-    rad_dist_u = k1 * rho2_u + k2 * rho2_u * rho2_u;
-    d_u << p_u(0) * rad_dist_u + 2.0 * p1 * mxy_u + p2 * (rho2_u + 2.0 * mx2_u),
+    // 书p101
+    mx2_u = p_u(0) * p_u(0);  // x^2
+    my2_u = p_u(1) * p_u(1);  // y^2
+    mxy_u = p_u(0) * p_u(1);  // xy
+    rho2_u = mx2_u + my2_u;   // r^2
+    rad_dist_u = k1 * rho2_u + k2 * rho2_u * rho2_u; // 书本（5.10） k1 * r^2 + k2 * r^4
+    d_u << p_u(0) * rad_dist_u + 2.0 * p1 * mxy_u + p2 * (rho2_u + 2.0 * mx2_u), // (x_dis + 2 * p1xy + p2(r^2 + 2x^2)
            p_u(1) * rad_dist_u + 2.0 * p2 * mxy_u + p1 * (rho2_u + 2.0 * my2_u);
 }
 

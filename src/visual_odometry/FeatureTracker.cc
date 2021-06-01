@@ -216,8 +216,8 @@ FeatureTracker::preprocessImage(cv::Mat& image, const cv::Mat& mask) const
     }
 }
 
-void
-FeatureTracker::detectFeatures(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints,
+// 检测特征点
+void FeatureTracker::detectFeatures(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints,
                                const cv::Mat& mask)
 {
     double ts = timeInSeconds();
@@ -496,8 +496,7 @@ TemporalFeatureTracker::TemporalFeatureTracker(const CameraConstPtr& camera,
 
 }
 
-bool
-TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
+bool TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
 {
     // 把图像帧的通道变为1赋值给m_image
     if (frame->image().channels() > 1)
@@ -523,7 +522,9 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
         preprocessImage(m_image, m_mask);
     }
 
+    // 检测特征点
     detectFeatures(m_image, m_kpts, m_mask);
+    // 计算描述子
     computeDescriptors(m_image, m_kpts, m_dtor);
 
     if (m_BA.empty())
@@ -562,7 +563,8 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
 
         cv::Mat matchingMask_rOI(m_matchingMask, cv::Rect(0, 0, m_kptsPrev.size(), m_kpts.size()));
 
-        switch (m_matchTestType)
+        // 描述子匹配
+        switch (m_matchTestType) // 匹配方式
         {
         case BEST_MATCH:
             matchPointFeaturesWithBestMatchTest(m_dtor, m_dtorPrev, matches, matchingMask_rOI);
@@ -575,6 +577,7 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
             matchPointFeaturesWithRatioTest(m_dtor, m_dtorPrev, matches, matchingMask_rOI);
         }
 
+        // 将描述子的对应匹配保存起来
         for (size_t i = 0; i < matches.size(); ++i)
         {
             std::vector<cv::DMatch>& match = matches.at(i);
@@ -607,10 +610,12 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
         }
 
         // cross-check
+        // 交叉检测
         int invalidMatchCount = 0;
 
         for (size_t i = 0; i < m_pointFeatures.size(); ++i)
         {
+            // 对于每个特征点
             Point2DFeaturePtr& pf = m_pointFeatures.at(i);
             if (pf->prevMatches().empty() || pf->bestPrevMatchId() == -1)
             {
@@ -623,6 +628,7 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
                 continue;
             }
 
+            // 如果特征点没有上一帧的匹配，也没有下一帧的匹配，则该特征点没有有效的匹配
             if (pfPrev->nextMatches().empty() || pfPrev->bestNextMatchId() == -1)
             {
                 pf->bestPrevMatchId() = -1;
@@ -638,6 +644,7 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
                 pfPrev->bestNextMatchId() = -1;
                 pf->bestPrevMatchId() = -1;
 
+                // 无效的匹配+1
                 ++invalidMatchCount;
             }
         }
@@ -650,6 +657,7 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
             for (size_t i = 0; i < m_pointFeatures.size(); ++i)
             {
                 Point2DFeaturePtr& pf = m_pointFeatures.at(i);
+                // 如果该特征点有关于上一阵特征点的匹配，且最佳匹配点不等于-1（默认值），则该匹配有效
                 if (!pf->prevMatches().empty() && pf->bestPrevMatchId() != -1)
                 {
                     ++validMatchCount;
@@ -660,6 +668,7 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
         }
 
         // remove singleton features from previous frame
+        /// 从上一帧中删除单个特征
         std::vector<Point2DFeaturePtr>::iterator itF2D = m_framePrev->features2D().begin();
 
         while (itF2D != m_framePrev->features2D().end())
@@ -680,8 +689,11 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
         }
     }
 
+    // 当前帧的关键点 变为 上一帧的关键点
     m_kptsPrev = m_kpts;
+    // 当前帧的描述子 变为 上一帧的描述子
     m_dtor.copyTo(m_dtorPrev);
+
     m_framePrev = frame;
 
     if (!m_image.empty())
@@ -697,6 +709,7 @@ TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
 
     if (!m_init)
     {
+        // 滑窗BA中添加帧
         m_BA.addFrame(frame);
 
         m_poses.push_back(frame->cameraPose()->toMatrix());
@@ -875,8 +888,8 @@ TemporalFeatureTracker::getScenePoints(void) const
     return m_BA.scenePoints();
 }
 
-void
-TemporalFeatureTracker::visualizeTracks(void)
+// 可视化跟踪过程
+void TemporalFeatureTracker::visualizeTracks(void)
 {
     int drawShiftBits = 4;
     int drawMultiplier = 1 << drawShiftBits;

@@ -212,8 +212,8 @@ int main(int argc, char** argv)
                     printf("cannot find input image camera_[d]_[llu].png\n");
                     return 1;
                 }
-                //image name : /home/zoukaixiang/code/Nullmax_data/extract/camera_0_1620458338070825.png time : 1620458338070825
-                printf("image name : %s time : %ld", it->path().string().c_str(), timestamp);
+                // image name : /home/zoukaixiang/code/Nullmax_data/extract/camera_0_1620458338070825.png time : 1620458338070825
+                // printf("image name : %s time : %ld", it->path().string().c_str(), timestamp);
                 inputImages[camera][timestamp] = it->path().string();
             }
 
@@ -233,7 +233,7 @@ int main(int argc, char** argv)
                 Eigen::Matrix3f R;
                 std::ifstream file(it->path().c_str());
                 // pose path : /home/zoukaixiang/code/camodocal/build/bin/extract/pose_1611287988722077180.txt
-                std::cout << "pose path : " << it->path().c_str() << std::endl;
+                // std::cout << "pose path : " << it->path().c_str() << std::endl;
                 if (!file.is_open())
                 {
                     printf("cannot find file %s containg a valid pose\n", it->path().c_str());
@@ -330,7 +330,7 @@ int main(int argc, char** argv)
                 camRigOdoCalib.addOdometry(T.translation()[0], T.translation()[1], T.translation()[2], yaw, timestamp);
 
                 // POSE: x=-31.4276, y=-19.3407, yaw=2.06285 [1620458313144448]
-                std::cout << "POSE: x=" << T.translation()[0] << ", y=" << T.translation()[1] << ", yaw=" << yaw << " [" << timestamp << "]" << std::endl;
+                // std::cout << "POSE: x=" << T.translation()[0] << ", y=" << T.translation()[1] << ", yaw=" << yaw << " [" << timestamp << "]" << std::endl;
             }
         };
 
@@ -368,13 +368,13 @@ int main(int argc, char** argv)
                     {
                         uint64_t camTime = camIterator[c]->first;
                         // IMG: 1620458322702547 -> /home/zoukaixiang/code/Nullmax_data/extract/camera_0_1620458322702547.png
-                        std::cout << "IMG: " << camTime << " -> " << camIterator[c]->second << std::endl;
+                        // std::cout << "IMG: " << camTime << " -> " << camIterator[c]->second << std::endl;
                         camera_num[c]++;
                         // Pose : 1620458322704937         // 时间戳
                         // -0.47244 -0.881363         0    // 旋转矩阵
                         // 0.881363  -0.47244         0
                         //        0         0         1
-                        std::cout << "Pose : " << locIterator->first << std::endl << locIterator->second.linear() << std::endl;
+                        // std::cout << "Pose : " << locIterator->first << std::endl << locIterator->second.linear() << std::endl;
                         camRigOdoCalib.addFrame(c, cv::imread(camIterator[c]->second), camTime);
                         camIterator[c]++;
                         hasData = true;

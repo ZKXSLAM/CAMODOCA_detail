@@ -45,8 +45,7 @@ SlidingWindowBA::globalCameraPose(void)
     return m_T_cam_odo.toMatrix();
 }
 
-bool
-SlidingWindowBA::addFrame(FramePtr& frame)
+bool SlidingWindowBA::addFrame(FramePtr& frame)
 {
     FramePtr frameCurr = frame;
 
@@ -57,16 +56,22 @@ SlidingWindowBA::addFrame(FramePtr& frame)
 
     // 将当前帧添加给滑窗
     m_window.push_back(frameCurr);
+
+    // m_N : 20
+    // 如果滑窗内的帧数大于阈值，就将之前的帧丢弃
     while ((int)m_window.size() > m_N)
     {
         m_window.pop_front();
     }
 
+    // 统计帧的总数
     ++m_frameCount;
 
     if (m_verbose)
     {
-        std::cout << "# INFO: Added frame " << m_frameCount - 1 << "." << std::endl;
+        // 一共添加了30次，初始四个相机各输出了一次
+        // Sling windows已添加 .. 帧
+        std::cout << "# INFO: Sliding windows : Added frame " << m_frameCount - 1 << "." << std::endl;
     }
 
     if (m_frameCount == 1) // 如果当前添加帧为第一帧
@@ -81,6 +86,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
         return true;
     }
 
+    // 上一帧就是窗口中所有帧的倒数第二帧
     FramePtr framePrev = *(++m_window.rbegin());
 
     // find feature correspondences between previous and current frames
@@ -89,7 +95,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
     std::vector<std::vector<Point2DFeaturePtr> > featureCorrespondences; //2d匹配特征点的集合
     // 把满足要求的匹配点 存放到 2d匹配特征点的集合
     findFeatureCorrespondences(frameCurr->features2D(), 2, featureCorrespondences);
-
+    // 把当前帧和上一帧的所有的最佳匹配ID设为-1
     for (size_t i = 0; i < framePrev->features2D().size(); ++i)
     {
         framePrev->features2D().at(i)->bestNextMatchId() = -1;
@@ -102,7 +108,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
     if (m_verbose)
     {
         // 在最新2帧中找到 ...  个特征对应
-        std::cout << "# INFO: Found " << featureCorrespondences.size() << " feature correspondences in last 2 frames." << std::endl;
+        std::cout << "# INFO: Sliding windows : Found " << featureCorrespondences.size() << " feature correspondences in last 2 frames." << std::endl;
     }
 
     // 如果是初始的前两帧
@@ -111,14 +117,16 @@ SlidingWindowBA::addFrame(FramePtr& frame)
         // compute pose in frame 1 relative to frame 0
         /// 计算帧1中相对于帧0的位姿
 
+        // 存放一帧图像的像素点
         std::vector<cv::Point2f> imagePoints[2];
 
 
         for (size_t i = 0; i < featureCorrespondences.size(); ++i)
         {
-            //对于每一对匹配点对
+            //对于每一对匹配点对，分别放在imagePoints[0],imagePoints[1]
             std::vector<Point2DFeaturePtr>& fc = featureCorrespondences.at(i);
 
+            //fc.size() : 2
             for (size_t j = 0; j < fc.size(); ++j)
             {
                 imagePoints[j].push_back(fc.at(j)->keypoint().pt);
@@ -131,7 +139,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
             if (m_verbose)
             {
                 // 用于BA初始化的2D-2D匹配数量不足
-                std::cout << "# INFO: Insufficient number of 2D-2D correspondences for BA initialization." << std::endl;
+                std::cout << "# INFO: sliding windows :Insufficient number of 2D-2D correspondences for BA initialization." << std::endl;
             }
 
             return false;
@@ -140,7 +148,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
         std::vector<cv::Point2f> rectImagePoints[2];
         for (size_t i = 0; i < 2; ++i)
         {
-            // 图像点矫正》？
+            // 图像点矫正
             rectifyImagePoints(k_camera, imagePoints[i], rectImagePoints[i]);
         }
 
@@ -156,9 +164,9 @@ SlidingWindowBA::addFrame(FramePtr& frame)
 
             if (m_verbose)
             {
-                std::cout << "# INFO: Computed pose in frame 0 wrt pose in frame 1 with " << cv::countNonZero(inliers) << " inliers:" << std::endl;
-                std::cout << R_cv << std::endl;
-                std::cout << t_cv << std::endl;
+                std::cout << "# INFO: sliding windows : Computed pose in frame 0 wrt pose in frame 1 with " << cv::countNonZero(inliers) << " inliers:" << std::endl;
+                std::cout << "R_cv : " << std::endl << R_cv << std::endl;
+                std::cout <<  "t_cv : " << std::endl << t_cv << std::endl;
             }
 
             Eigen::Matrix3d R;
@@ -167,6 +175,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
             Eigen::Vector3d t;
             cv::cv2eigen(t_cv, t);
 
+            // 当前帧相机的位姿赋值 (暂认为是相机在世界坐标系下位姿)
             frameCurr->cameraPose()->rotation() = Eigen::Quaterniond(R);
             frameCurr->cameraPose()->translation() = t;
         }
@@ -176,6 +185,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
             inliers = cv::Scalar(1);
         }
 
+        // 所有点对的集合
         std::vector<std::vector<Point2DFeaturePtr> > inlierFeatureCorrespondences;
         for (int i = 0; i < inliers.cols; ++i)
         {
@@ -187,14 +197,18 @@ SlidingWindowBA::addFrame(FramePtr& frame)
             inlierFeatureCorrespondences.push_back(featureCorrespondences.at(i));
         }
 
+        //  图像点清空
         for (int i = 0; i < 2; ++i)
         {
             imagePoints[i].clear();
         }
+
+        // 对于每一个匹配点对
         for (size_t i = 0; i < inlierFeatureCorrespondences.size(); ++i)
         {
             std::vector<Point2DFeaturePtr>& fc = inlierFeatureCorrespondences.at(i);
 
+            // inlierFeatureCorrespondences: fc.size() : 2
             for (size_t j = 0; j < fc.size(); ++j)
             {
                 imagePoints[j].push_back(fc.at(j)->keypoint().pt);
@@ -207,19 +221,22 @@ SlidingWindowBA::addFrame(FramePtr& frame)
         }
 
         // triangulate scene points
+        /// 三角化场景点
         std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > points3D;
         std::vector<size_t> indices;
 
+        // m_mode : 1 (VO = 1, ODOMETRY = 0)
         if (m_mode == VO)
         {
             triangulatePoints(framePrev->cameraPose()->rotation(), framePrev->cameraPose()->translation(), imagePoints[0],
                               frameCurr->cameraPose()->rotation(), frameCurr->cameraPose()->translation(), imagePoints[1],
                               points3D, indices);
         }
-        else
+        else // m_mode == ODOMETRY
         {
             Eigen::Matrix4d H_odo_cam = m_T_cam_odo.toMatrix().inverse();
 
+            // 上一帧相机在世界坐标系下的位姿 = Tco × Tow
             Eigen::Matrix4d H1 = H_odo_cam * framePrev->systemPose()->toMatrix().inverse();
             Eigen::Matrix4d H2 = H_odo_cam * frameCurr->systemPose()->toMatrix().inverse();
 
@@ -230,7 +247,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
 
         if (m_verbose)
         {
-            std::cout << "# INFO: Triangulated " << points3D.size() << " points." << std::endl;
+            std::cout << "# INFO: sliding windows : Triangulated " << points3D.size() << " points." << std::endl;
         }
 
         if ((int)points3D.size() < k_min2D3DFeatureCorrespondences)
@@ -243,10 +260,12 @@ SlidingWindowBA::addFrame(FramePtr& frame)
             return false;
         }
 
+        // 对于每个三维点
         for (size_t i = 0; i < points3D.size(); ++i)
         {
             size_t idx = indices.at(i);
 
+            // 第i个三维点对应的二维像素点
             std::vector<Point2DFeaturePtr>& fc = inlierFeatureCorrespondences.at(idx);
 
             Point2DFeaturePtr& f0 = fc.at(0);
@@ -256,6 +275,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
 
             point3D->point() = points3D.at(i);
 
+            // 三维点和二维像素点一一对应
             for (int j = 0; j < 2; ++j)
             {
                 Point2DFeaturePtr& pt = fc.at(j);
@@ -268,12 +288,13 @@ SlidingWindowBA::addFrame(FramePtr& frame)
             f1->bestPrevMatchId() = 0;
         }
     }
-    else
+    else // 如果不是初始的两帧
     {
         // find feature correspondences with associated 3D scene points
+        /// 查找与关联三维场景点的特征对应关系
 
-        std::vector<std::vector<Point2DFeaturePtr> > triFeatureCorrespondences;
-        std::vector<std::vector<Point2DFeaturePtr> > untriFeatureCorrespondences;
+        std::vector<std::vector<Point2DFeaturePtr> > triFeatureCorrespondences;   // 存放的是匹配的2d点，其中点1存在对应的3维点
+        std::vector<std::vector<Point2DFeaturePtr> > untriFeatureCorrespondences; // 存放的是匹配的2d点，其中点1没有对应的3维点
         for (size_t i = 0; i < featureCorrespondences.size(); ++i)
         {
             std::vector<Point2DFeaturePtr>& fc = featureCorrespondences.at(i);
@@ -306,29 +327,36 @@ SlidingWindowBA::addFrame(FramePtr& frame)
 
             if (m_verbose)
             {
+                // 使用...个场景点通过P3P-RANSAC计算姿势。
                 std::cout << "# INFO: Using " << triFeatureCorrespondences.size() << " scene points to compute pose via P3P RANSAC." << std::endl;
             }
 
             Eigen::Matrix4d H;
+            // 通过P3P-RANSAC计算相机位姿
             solveP3PRansac(triFeatureCorrespondences, H, inliers);
 
             if (m_verbose)
             {
-                std::cout << "# INFO: Computed pose in frame " << m_frameCount - 1 << ":" << std::endl;
+                std::cout << "# INFO: Sliding windows:(not initial frame:) Computed pose in frame " << m_frameCount - 1 << ":" << std::endl;
 
-                std::cout << H << std::endl;
+                std::cout <<"H :" << std::endl <<  H << std::endl;
             }
 
+            // 当前帧相机的位姿赋值
             frameCurr->cameraPose()->rotation() = Eigen::Quaterniond(H.block<3,3>(0,0));
             frameCurr->cameraPose()->translation() = H.block<3,1>(0,3);
         }
 
         // remove feature correspondences marked as outliers in P3P RANSAC
+        ///  删除P3P RANSAC中标记为异常值的特征对应
+
         std::vector<bool> inlierFlag(triFeatureCorrespondences.size(), false);
         for (size_t i = 0; i < inliers.size(); ++i)
         {
+            // 最符合Ransac的内点的Vec的点赋值为true
             inlierFlag.at(inliers.at(i)) = true;
         }
+
 
         for (size_t i = 0; i < triFeatureCorrespondences.size(); ++i)
         {
@@ -339,7 +367,9 @@ SlidingWindowBA::addFrame(FramePtr& frame)
 
             if (inlierFlag.at(i))
             {
+                // 点一和点2匹配，把点1对应的三维点赋值为点2对应的三维点
                 f1->feature3D() = f0->feature3D();
+                // 把三维点和点2对应起来
                 f1->feature3D()->features2D().push_back(f1);
 
                 f0->bestNextMatchId() = 0;
@@ -347,7 +377,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
             }
         }
 
-        if (m_verbose)
+        if (m_verbose) // 计算并输出重投影误差
         {
             size_t count = 0;
             double totalError = 0.0;
@@ -382,17 +412,20 @@ SlidingWindowBA::addFrame(FramePtr& frame)
 
             double avgError = totalError / count;
 
-            printf("# INFO: P3P RANSAC yielded %lu inliers with a reprojection error of %.2f px.\n", inliers.size(), avgError);
+            printf("# INFO: sliding window : P3P RANSAC yielded %lu inliers with a reprojection error of %.2f px.\n", inliers.size(), avgError);
         }
 
         // use epipolar constraint to remove outlier 2D-2D correspondences
         /// 使用极线约束删除异常2D-2D对应
 
+        // T_k,k-1 相机k-1帧到k帧的变换矩阵
         Eigen::Matrix4d H_rel = frameCurr->cameraPose()->toMatrix() * framePrev->cameraPose()->toMatrix().inverse();
         Eigen::Matrix3d R_rel = H_rel.block<3,3>(0,0);
         Eigen::Vector3d t_rel = H_rel.block<3,1>(0,3);
+        // 本质矩阵
         Eigen::Matrix3d E = skew(t_rel) * R_rel;
 
+        // 遍历没有三维匹配点的2d匹配点集合
         std::vector<std::vector<Point2DFeaturePtr> >::iterator it = untriFeatureCorrespondences.begin();
         while (it != untriFeatureCorrespondences.end())
         {
@@ -400,9 +433,11 @@ SlidingWindowBA::addFrame(FramePtr& frame)
             cv::KeyPoint kpt2 = it->at(1)->keypoint();
 
             Eigen::Vector3d spt1;
+            // 把像素坐标系转换到相机坐标系
             k_camera->liftSphere(Eigen::Vector2d(kpt1.pt.x, kpt1.pt.y), spt1);
 
             Eigen::Vector3d spt2;
+            // 把像素坐标系转换到相机坐标系
             k_camera->liftSphere(Eigen::Vector2d(kpt2.pt.x, kpt2.pt.y), spt2);
 
             double err = sampsonError(E, spt1, spt2);
@@ -417,7 +452,7 @@ SlidingWindowBA::addFrame(FramePtr& frame)
         }
 
         // triangulate new feature correspondences seen in last 2 frames
-        /// 三角化最近2帧中看到的新特征对应
+        /// 三角化最近2帧中看到的新特征对应(针对于没有三维点对应的匹配对集合)
 
         std::vector<cv::Point2f> ipoints[2];
 
@@ -434,9 +469,10 @@ SlidingWindowBA::addFrame(FramePtr& frame)
 
         if (m_verbose)
         {
-            std::cout << "# INFO: Found " << untriFeatureCorrespondences.size() << " new feature correspondences." << std::endl;
+            std::cout << "# INFO: Sliding windows: Found " << untriFeatureCorrespondences.size() << " new!!! feature correspondences." << std::endl;
         }
 
+        // 存在符合条件的 没有三维点对应的 匹配二维特征点对
         if (!untriFeatureCorrespondences.empty())
         {
             std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > points3D;
@@ -462,9 +498,10 @@ SlidingWindowBA::addFrame(FramePtr& frame)
 
             if (m_verbose)
             {
-                std::cout << "# INFO: Triangulated " << points3D.size() << " new points." << std::endl;
+                std::cout << "# INFO: Sliding windows: Triangulated " << points3D.size() << " new !!!!  points." << std::endl;
             }
 
+            // 让三维点和二维点对匹配起来
             for (size_t i = 0; i < points3D.size(); ++i)
             {
                 Point3DFeaturePtr point3D = boost::make_shared<Point3DFeature>();
@@ -488,18 +525,20 @@ SlidingWindowBA::addFrame(FramePtr& frame)
                 f1->bestPrevMatchId() = 0;
             }
         }
-    }
+    } // 如果不是初始的两帧
 
     if (m_verbose)
     {
         double minError, maxError, avgError;
 
         windowReprojectionError(minError, maxError, avgError);
-
-        std::cout << "# INFO: Window reprojection error before optimization: min = " << minError << " | max = " << maxError << " | avg = " << avgError << std::endl;
+        // 优化前窗口重投影错误
+        std::cout << "# INFO: Slinding Windows : Window reprojection error before optimization: min = " << minError << " | max = " << maxError << " | avg = " << avgError << std::endl;
     }
 
     bool runOptimization = false;
+
+    // 遍历窗口中的帧
     for (std::list<FramePtr>::const_iterator it = m_window.begin(); it != m_window.end(); ++it)
     {
         const FrameConstPtr& frame = *it;
@@ -509,8 +548,8 @@ SlidingWindowBA::addFrame(FramePtr& frame)
         for (size_t i = 0; i < features2D.size(); ++i)
         {
             const Point2DFeatureConstPtr& feature2D = features2D.at(i);
-            //const Point3DFeatureConstPtr& feature3D = feature2D->feature3D();
 
+            // 如果窗口中帧的2D特征点有对应的三维点，就可以执行优化
             if (feature2D->feature3D())
             {
                 runOptimization = true;
@@ -779,8 +818,8 @@ SlidingWindowBA::frameReprojectionError(int windowIdx, double& minError, double&
     avgError = totalError / count;
 }
 
-void
-SlidingWindowBA::windowReprojectionError(double& minError, double& maxError, double& avgError) const
+// 滑动窗口的重投影误差
+void SlidingWindowBA::windowReprojectionError(double& minError, double& maxError, double& avgError) const
 {
     minError = std::numeric_limits<double>::max();
     maxError = std::numeric_limits<double>::min();
@@ -897,12 +936,14 @@ void SlidingWindowBA::findFeatureCorrespondences(const std::vector<Point2DFeatur
 
         for (int j = nViews - 1; j > 0; --j)
         {
+            // 如果该特征点相对于上一帧的匹配为空，或者没有最佳匹配，则没找到匹配点
             if (pt[j]->prevMatches().empty() || pt[j]->bestPrevMatchId() == -1)
             {
                 foundCorrespondences = false;
                 break;
             }
 
+            // pt[j-1] = 特征点在上一帧的匹配
             pt[j - 1] = pt[j]->prevMatch().lock();
 
             if (!pt[j - 1])
@@ -944,15 +985,22 @@ void SlidingWindowBA::findFeatureCorrespondences(const std::vector<Point2DFeatur
     }
 }
 
-void
-SlidingWindowBA::solveP3PRansac(const std::vector<std::vector<Point2DFeaturePtr> >& correspondences,
+/**
+ * 通过P3P-RANSAC计算姿势
+ * @param correspondences
+ * @param H 计算获得的相机位姿
+ * @param inliers 最符合Ransac的内点的Vec
+ */
+void SlidingWindowBA::solveP3PRansac(const std::vector<std::vector<Point2DFeaturePtr> >& correspondences,
                                 Eigen::Matrix4d& H,
                                 std::vector<size_t>& inliers) const
 {
     inliers.clear();
 
     double p = 0.99; // probability that at least one set of random samples does not contain an outlier
+                     // 至少一组随机样本不包含异常值的概率
     double v = 0.6; // probability of observing an outlier
+                    // 观察异常值的概率
 
     double u = 1.0 - v;
     int N = static_cast<int>(log(1.0 - p) / log(1.0 - u * u * u) + 0.5);
@@ -976,11 +1024,13 @@ SlidingWindowBA::solveP3PRansac(const std::vector<std::vector<Point2DFeaturePtr>
         {
             const std::vector<Point2DFeaturePtr>& corr = correspondences.at(indices.at(j));
 
+            // 三维点
             worldPoints.at(j) = corr.at(0)->feature3D()->point();
 
             const cv::KeyPoint& kpt2 = corr.at(1)->keypoint();
 
             Eigen::Vector3d ray;
+            // 把像素坐标系转换到相机坐标系
             k_camera->liftSphere(Eigen::Vector2d(kpt2.pt.x, kpt2.pt.y), ray);
 
             rays.at(j) = ray;
@@ -997,6 +1047,7 @@ SlidingWindowBA::solveP3PRansac(const std::vector<std::vector<Point2DFeaturePtr>
             Eigen::Matrix4d H_inv = solutions.at(j).inverse();
 
             std::vector<size_t> inliersIds;
+            // 计算重投影误差，删去误差过大的点
             for (size_t k = 0; k < correspondences.size(); ++k)
             {
                 const std::vector<Point2DFeaturePtr>& corr = correspondences.at(k);
@@ -1005,6 +1056,7 @@ SlidingWindowBA::solveP3PRansac(const std::vector<std::vector<Point2DFeaturePtr>
 
                 Eigen::Vector3d P2 = transformPoint(H_inv, P1);
                 Eigen::Vector2d p2_pred;
+                // 把三维点投影到二维平面
                 k_camera->spaceToPlane(P2, p2_pred);
 
                 const Point2DFeatureConstPtr& f2 = corr.at(1);
@@ -1051,8 +1103,18 @@ SlidingWindowBA::project3DPoint(const Eigen::Quaterniond& q, const Eigen::Vector
     return true;
 }
 
-void
-SlidingWindowBA::triangulatePoints(const Eigen::Quaterniond& q1,
+/**
+ * 三角化特征点
+ * @param q1  上一帧相机的旋转
+ * @param t1  上一帧相机的平移
+ * @param imagePoints1  上一帧相机的图像点
+ * @param q2  当前帧相机的旋转
+ * @param t2  当前帧相机的平移
+ * @param imagePoints2  当前帧相机的图像点
+ * @param points3D  三维点
+ * @param inliers   存放内点id的vector
+ */
+void SlidingWindowBA::triangulatePoints(const Eigen::Quaterniond& q1,
                                    const Eigen::Vector3d& t1,
                                    const std::vector<cv::Point2f>& imagePoints1,
                                    const Eigen::Quaterniond& q2,
@@ -1061,8 +1123,11 @@ SlidingWindowBA::triangulatePoints(const Eigen::Quaterniond& q1,
                                    std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> >& points3D,
                                    std::vector<size_t>& inliers) const
 {
+    // 相机1的 Tcw
     Eigen::Matrix4d H_cam1 = homogeneousTransform(q1.toRotationMatrix(), t1);
+    // 相机1的 Twc
     Eigen::Matrix4d H_cam1_inv = H_cam1.inverse();
+    // 相机2的 Tcw
     Eigen::Matrix4d H_cam2 = homogeneousTransform(q2.toRotationMatrix(), t2);
     Eigen::Matrix4d H = H_cam2 * H_cam1_inv;
 
@@ -1072,9 +1137,11 @@ SlidingWindowBA::triangulatePoints(const Eigen::Quaterniond& q1,
         const cv::Point2f& p2_cv = imagePoints2.at(i);
 
         Eigen::Vector3d spt1;
+        // 把像素坐标系转换到相机坐标系
         k_camera->liftSphere(Eigen::Vector2d(p1_cv.x, p1_cv.y), spt1);
 
         Eigen::Vector3d spt2;
+        // 把像素坐标系转换到相机坐标系
         k_camera->liftSphere(Eigen::Vector2d(p2_cv.x, p2_cv.y), spt2);
 
         Eigen::MatrixXd A(3,2);
@@ -1092,9 +1159,10 @@ SlidingWindowBA::triangulatePoints(const Eigen::Quaterniond& q1,
         }
 
         Eigen::Vector3d P = gamma(0) * spt1;
+        // 把三维点转换到相机坐标系
         P = transformPoint(H_cam1_inv, P);
 
-        // validate scene point
+        // validate scene point 验证场景点是否有效
         Eigen::Vector2d p2;
         if (!project3DPoint(q2, t2, P.block<3,1>(0,0), p2))
         {
@@ -1110,12 +1178,12 @@ SlidingWindowBA::triangulatePoints(const Eigen::Quaterniond& q1,
         }
 
         points3D.push_back(P);
-        inliers.push_back(i);
+        inliers.push_back(i); // 存放内点的id（也对应了每个三维点id）
     }
 }
 
-void
-SlidingWindowBA::optimize(void)
+// 优化窗口中的 ？
+void SlidingWindowBA::optimize(void)
 {
     ceres::Problem problem;
 

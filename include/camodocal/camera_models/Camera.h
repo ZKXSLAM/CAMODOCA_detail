@@ -68,11 +68,13 @@ public:
 
     // Lift points from the image plane to the sphere
     // 将点从图像平面提升到球体
+    // 本质都是：把像素坐标系转换到相机坐标系
     virtual void liftSphere(const Eigen::Vector2d& p, Eigen::Vector3d& P) const = 0;
     //%output P
 
     // Lift points from the image plane to the projective space
     // 将点从图像平面提升到射影空间
+    // 本质都是：把像素坐标系转换到相机坐标系
     virtual void liftProjective(const Eigen::Vector2d& p, Eigen::Vector3d& P) const = 0;
     //%output P
 

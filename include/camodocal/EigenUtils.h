@@ -15,6 +15,7 @@ T square(const T & m)
 }
 
 // Returns the 3D cross product skew symmetric matrix of a given 3D vector
+    // 返回给定三维向量的三维叉积斜对称矩阵
 template<typename T>
 Eigen::Matrix<T, 3, 3> skew(const Eigen::Matrix<T, 3, 1>& vec)
 {
@@ -257,6 +258,7 @@ Eigen::Matrix<T, 4, 4> poseWithSphericalTranslation(const T* const q, const T* c
 }
 
 // Returns the Sampson error of a given essential matrix and 2 image points
+// 返回给定基本矩阵和2个图像点的Sampson误差
 template<typename T>
 T sampsonError(const Eigen::Matrix<T, 3, 3>& E,
                const Eigen::Matrix<T, 3, 1>& p1,

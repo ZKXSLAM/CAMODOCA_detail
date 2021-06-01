@@ -137,9 +137,9 @@ protected:
 
     bool m_init;
 
-    std::vector<cv::KeyPoint> m_kpts, m_kptsPrev;
-    cv::Mat m_dtor, m_dtorPrev;
-    FramePtr m_framePrev;
+    std::vector<cv::KeyPoint> m_kpts, m_kptsPrev; // 当前帧和上一帧的特征点
+    cv::Mat m_dtor, m_dtorPrev;  // 描述子
+    FramePtr m_framePrev;        // 上一帧
 
     std::vector<Point2DFeaturePtr> m_pointFeatures;
 
