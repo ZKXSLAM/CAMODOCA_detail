@@ -8,44 +8,71 @@
 
 namespace camodocal
 {
-
+/**
+ * 把里程计的位姿从世界坐标系转到相机坐标系
+ * @tparam T
+ * @param q_cam_odo     qoc:  相机到里程计坐标系的旋转四元数
+ * @param t_cam_odo     toc:  相机到里程计坐标系的平移
+ * @param p_odo      t_{Wo}o: 里程计相对于里程计第一帧的平移
+ * @param att_odo  Att_{Wo}o: 里程计相对于里程计第一帧的欧拉角
+ * @param q
+ * @param t
+ * @param optimize_cam_odo_z   是否优化外参z轴
+ */
 template<typename T>
-void
-worldToCameraTransform(const T* const q_cam_odo, const T* const t_cam_odo,
+void worldToCameraTransform(const T* const q_cam_odo, const T* const t_cam_odo,
                        const T* const p_odo, const T* const att_odo,
                        T* q, T* t, bool optimize_cam_odo_z = true)
 {
+    /// 通过取里程计相对于里程计第一帧的四元数的逆获得从里程计第一帧(里程计世界坐标)到里程计当前帧的旋转
+    // q_inv : q_o{Wo}
+    // q_z(γ)
+///为什么sin的地方是负号 : 因为这里旋转的逆，q^-1 = q*/||q||^2 (||q|| = 1) => q^-1 = q*; q*即为四元数的共轭，即把虚部变成相反数
     Eigen::Quaternion<T> q_z_inv(cos(att_odo[0] / T(2)), T(0), T(0), -sin(att_odo[0] / T(2)));
+    // q_y(β)
     Eigen::Quaternion<T> q_y_inv(cos(att_odo[1] / T(2)), T(0), -sin(att_odo[1] / T(2)), T(0));
+    // q_x(α)
     Eigen::Quaternion<T> q_x_inv(cos(att_odo[2] / T(2)), -sin(att_odo[2] / T(2)), T(0), T(0));
 
+    // 从里程计第一帧(里程计世界坐标)到里程计当前帧的旋转 表示为绕ZYX定轴分解的连乘形式
+    // q_o{Wo}
     Eigen::Quaternion<T> q_zyx_inv = q_x_inv * q_y_inv * q_z_inv;
 
+    // q_o{Wo}
     T q_odo[4] = {q_zyx_inv.w(), q_zyx_inv.x(), q_zyx_inv.y(), q_zyx_inv.z()};
 
+    // qco = qoc^-1
     T q_odo_cam[4] = {q_cam_odo[3], -q_cam_odo[0], -q_cam_odo[1], -q_cam_odo[2]};
 
     T q0[4];
+    // 通过qco 把里程计相对于里程计第一帧(里程计世界坐标)的旋转 转变为 里程计第一帧(里程计世界坐标)到相机坐标系的旋转
+    // 四元数相乘 q0 = qc{Wo} = qco × q_o{Wo}
     ceres::QuaternionProduct(q_odo_cam, q_odo, q0);
 
     T t0[3];
+    // t_{Wo}o 里程计相对于里程计第一帧的平移
     T t_odo[3] = {p_odo[0], p_odo[1], p_odo[2]};
 
+    // 通过 把里程计相对于里程计第一帧(里程计世界坐标)的旋转 把 里程计当前帧对里程计第一帧(里程计世界坐标)的平移 转化为
+    // 通过四元数q旋转点,t0 = too = q_o{Wo} * t_{Wo}o
     ceres::QuaternionRotatePoint(q_odo, t_odo, t0);
 
+    // tow += too + toc
     t0[0] += t_cam_odo[0];
     t0[1] += t_cam_odo[1];
 
+    // 如果优化cam-odo的z轴，就加上tco的z轴
     if (optimize_cam_odo_z)
     {
         t0[2] += t_cam_odo[2];
     }
 
+    // t = tcw = qco * tow
     ceres::QuaternionRotatePoint(q_odo_cam, t0, t);
+    //
     t[0] = -t[0]; t[1] = -t[1]; t[2] = -t[2];
 
-    // Convert quaternion from Ceres convention (w, x, y, z)
-    // to Eigen convention (x, y, z, w)
+    // Convert quaternion from Ceres convention (w, x, y, z) to Eigen convention (x, y, z, w)
     q[0] = q0[1]; q[1] = q0[2]; q[2] = q0[3]; q[3] = q0[0];
 }
 
@@ -138,6 +165,7 @@ class ReprojectionError2
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
+    // 传入相机参数 和 观察到的像素点坐标
     ReprojectionError2(const std::vector<double>& intrinsic_params,
                        const Eigen::Vector2d& observed_p)
      : m_intrinsic_params(intrinsic_params), m_observed_p(observed_p) {}
@@ -153,10 +181,12 @@ public:
 
         std::vector<T> intrinsic_params(m_intrinsic_params.begin(), m_intrinsic_params.end());
 
-        // project 3D object point to the image plane
+        // project 3D object point to the image plane 将三维对象点投影到图像平面
         Eigen::Matrix<T,2,1> predicted_p;
+        // 把三维点投影到像素坐标系
         CameraT::spaceToPlane(intrinsic_params.data(), q, t, P, predicted_p);
 
+        // 残差是预测位置和观测位置之间的差值
         residuals[0] = predicted_p(0) - T(m_observed_p(0));
         residuals[1] = predicted_p(1) - T(m_observed_p(1));
 
@@ -164,10 +194,10 @@ public:
     }
 
 private:
-    // camera intrinsics
+    // camera intrinsics 相机内参
     std::vector<double> m_intrinsic_params;
 
-    // observed 2D point
+    // observed 2D point 观测到的像素点坐标
     Eigen::Vector2d m_observed_p;
 };
 
@@ -226,8 +256,20 @@ public:
      , m_observed_p(observed_p)
      , m_optimize_cam_odo_z(true) {}
 
-    // variables: camera intrinsics, camera-to-odometry transform,
-    //            odometry extrinsics, 3D point
+    // variables: camera intrinsics, camera-to-odometry transform, odometry extrinsics, 3D point
+    // 优化相机内参，相机-里程计外参，里程计外参，三维点
+    /**
+     * 计算残差，
+     * @tparam T
+     * @param intrinsic_params   相机内参
+     * @param q_cam_odo    q_oc: 相机坐标系到里程计坐标系的旋转四元数(4维)
+     * @param t_cam_odo    t_oc: 相机坐标系到里程计坐标系的平移(3维)
+     * @param p_odo      t_{wo}o:里程计相对于里程计第一帧的平移(没固定前：3维)
+     * @param att_odo  Att_{wo}o:里程计相对于里程计第一帧的的欧拉角(没固定前：3维)
+     * @param point              三维点(3维)
+     * @param residuals          残差(2维)
+     * @return
+     */
     template <typename T>
     bool operator()(const T* const intrinsic_params,
                     const T* const q_cam_odo, const T* const t_cam_odo,
@@ -235,15 +277,17 @@ public:
                     const T* const point, T* residuals) const
     {
         T q[4], t[3];
+        // 通过Toc和 T{wo}o 得到q_c{wo},t_c{wo}
         worldToCameraTransform(q_cam_odo, t_cam_odo, p_odo, att_odo, q, t, m_optimize_cam_odo_z);
 
         Eigen::Matrix<T,3,1> P(point[0], point[1], point[2]);
 
-        // project 3D object point to the image plane
+        // project 3D object point to the image plane 将三维点投影到图像平面
         Eigen::Matrix<T,2,1> predicted_p;
         CameraT::spaceToPlane(intrinsic_params, q, t, P, predicted_p);
 
         Eigen::Matrix<T,2,1> err = predicted_p - m_observed_p.cast<T>();
+        // 给误差添加权重
         Eigen::Matrix<T,2,1> err_weighted = m_sqrtPrecisionMat.cast<T>() * err;
 
         residuals[0] = err_weighted(0);
@@ -253,10 +297,20 @@ public:
     }
 
     // variables: camera-to-odometry transform, 3D point
+    /**
+     *
+     * @tparam T
+     * @param q_cam_odo   qoc
+     * @param t_cam_odo   toc
+     * @param point
+     * @param residuals
+     * @return
+     */
     template <typename T>
     bool operator()(const T* const q_cam_odo, const T* const t_cam_odo,
                     const T* const point, T* residuals) const
     {
+        // 思考 m_odo_pos 与上面的 p_odo 的区别 ：其实差不多， m_odo_pos 也是由 odo_pos赋值的
         T p_odo[3] = {T(m_odo_pos(0)), T(m_odo_pos(1)), T(m_odo_pos(2))};
         T att_odo[3] = {T(m_odo_att(0)), T(m_odo_att(1)), T(m_odo_att(2))};
         T q[4], t[3];
@@ -269,7 +323,7 @@ public:
         // project 3D object point to the image plane
         Eigen::Matrix<T,2,1> predicted_p;
         CameraT::spaceToPlane(intrinsic_params.data(), q, t, P, predicted_p);
-
+        /// 注意 没有乘权重
         residuals[0] = predicted_p(0) - T(m_observed_p(0));
         residuals[1] = predicted_p(1) - T(m_observed_p(1));
 
@@ -277,8 +331,18 @@ public:
     }
 
     // variables: camera-to-odometry transform, odometry extrinsics, 3D point
-    template <typename T>
-    bool operator()(const T* const q_cam_odo, const T* const t_cam_odo,
+    /**
+     * 计算残差，优化相机-里程计外参，里程计外参，三维点
+     * @tparam T
+     * @param q_cam_odo
+     * @param t_cam_odo
+     * @param p_odo
+     * @param att_odo
+     * @param point
+     * @param residuals
+     * @return
+     */
+    template <typename T> bool operator()(const T* const q_cam_odo, const T* const t_cam_odo,
                     const T* const p_odo, const T* const att_odo,
                     const T* const point, T* residuals) const
     {
@@ -331,6 +395,7 @@ private:
     std::vector<double> m_intrinsic_params;
 
     // observed camera-odometry transform
+    // 观测的相机-里程计位姿变换
     Eigen::Quaterniond m_cam_odo_q;
     Eigen::Vector3d m_cam_odo_t;
 
@@ -341,8 +406,10 @@ private:
     // observed 2D point
     Eigen::Vector2d m_observed_p;
 
+    // 权重
     Eigen::Matrix2d m_sqrtPrecisionMat;
 
+    // 是否优化外参的z轴
     bool m_optimize_cam_odo_z;
 };
 
@@ -542,18 +609,18 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
     return costFunction;
 }
 
-ceres::CostFunction*
-CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
+ceres::CostFunction* CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                                           const Eigen::Vector2d& observed_p,
                                           int flags, bool optimize_cam_odo_z) const
 {
     ceres::CostFunction* costFunction = 0;
 
     std::vector<double> intrinsic_params;
-    camera->writeParameters(intrinsic_params);
+    camera->writeParameters(intrinsic_params); // 读取相机内参
 
     switch (flags)
     {
+    //优化相机位姿和三维点
     case CAMERA_POSE | POINT_3D:
         switch (camera->modelType())
         {
@@ -567,6 +634,8 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                 new ceres::AutoDiffCostFunction<ReprojectionError2<PinholeCamera>, 2, 4, 3, 3>(
                     new ReprojectionError2<PinholeCamera>(intrinsic_params, observed_p));
             break;
+            /// <2,4,3,3>: 2 :输出维度,2维的残差; 4: 输入维度，相机的旋转四元数; 3: 输入维度，相机的平移; 3: 输入维度，三维点的坐标
+            /// 对应于 bool operator()(const T* const q, const T* const t,  const T* const point, T* residuals) const
         case Camera::MEI:
             costFunction =
                 new ceres::AutoDiffCostFunction<ReprojectionError2<CataCamera>, 2, 4, 3, 3>(
@@ -579,6 +648,7 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
             break;
         }
         break;
+    // 优化外参，里程计3位姿和三维点
     case CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_3D_POSE | POINT_3D:
         switch (camera->modelType())
         {
@@ -597,15 +667,22 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
             }
             break;
         case Camera::PINHOLE:
+            // 是否优化外参z轴平移
             if (optimize_cam_odo_z)
             {
                 costFunction =
                     new ceres::AutoDiffCostFunction<ReprojectionError3<PinholeCamera>, 2, 4, 3, 2, 1, 3>(
                         new ReprojectionError3<PinholeCamera>(intrinsic_params, observed_p));
+                /// <2, 4, 3, 2, 1, 3>: 2 :输出维度,2维的残差; 4: 输入维度，相机的旋转四元数;3: 输入维度，相机的平移;
+                ///  2: 输入维度，里程计的平移(原本是3维固定住z轴所以是2维);
+                ///  1:输入维度，里程计的欧拉角(原本是3维固定住roll，pitch只优化yaw所以是1维; 3:输入维度，三维点的坐标
+                /// 对应于：bool operator()(const T* const q_cam_odo, const T* const t_cam_odo,
+                ///                    const T* const p_odo, const T* const att_odo,
+                ///                    const T* const point, T* residuals) const
             }
             else
             {
-                costFunction =
+                costFunction =                                      /// 因为不优化外参的z，所以外参的输入维度是2
                     new ceres::AutoDiffCostFunction<ReprojectionError3<PinholeCamera>, 2, 4, 2, 2, 1, 3>(
                         new ReprojectionError3<PinholeCamera>(intrinsic_params, observed_p));
             }
@@ -640,6 +717,7 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
             break;
         }
         break;
+    // 优化外参，里程计6位姿和三维点
     case CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE | POINT_3D:
         switch (camera->modelType())
         {
@@ -663,6 +741,12 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                 costFunction =
                     new ceres::AutoDiffCostFunction<ReprojectionError3<PinholeCamera>, 2, 4, 3, 3, 3, 3>(
                         new ReprojectionError3<PinholeCamera>(intrinsic_params, observed_p));
+                /// <2, 4, 3, 3, 3, 3>: 2 :输出维度,2维的残差; 4: 输入维度，相机的旋转四元数;3: 输入维度，相机的平移;
+                ///  3: 输入维度，里程计的平移(没固定住z轴); 3:输入维度，里程计的欧拉角(没固定住roll，pitch);
+                ///  3:输入维度，三维点的坐标
+                /// 对应于：bool operator()(const T* const q_cam_odo, const T* const t_cam_odo,
+                ///                    const T* const p_odo, const T* const att_odo,
+                ///                    const T* const point, T* residuals) const
             }
             else
             {
@@ -701,6 +785,7 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
             break;
         }
         break;
+    // 优化内参，外参，里程计3位姿和三维点
     case CAMERA_INTRINSICS | CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_3D_POSE | POINT_3D:
         switch (camera->modelType())
         {
@@ -724,6 +809,15 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                 costFunction =
                     new ceres::AutoDiffCostFunction<ReprojectionError3<PinholeCamera>, 2, 8, 4, 3, 2, 1, 3>(
                         new ReprojectionError3<PinholeCamera>(observed_p));
+                /// <2, 8, 4, 3, 2, 1, 3>: 2 :输出维度,2维的残差; 8: 输入维度，相机内参
+                ///  4: 输入维度，相机的旋转四元数;3: 输入维度，相机的平移;
+                ///  2: 输入维度，里程计的平移(原本是3维固定住z轴所以是2维);
+                ///  1:输入维度，里程计的欧拉角(原本是3维固定住roll，pitch只优化yaw所以是1维; 3:输入维度，三维点的坐标
+                ///
+                /// bool operator()(const T* const intrinsic_params,
+                //                    const T* const q_cam_odo, const T* const t_cam_odo,
+                //                    const T* const p_odo, const T* const att_odo,
+                //                    const T* const point, T* residuals) const
             }
             else
             {

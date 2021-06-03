@@ -142,33 +142,43 @@ private:
 typedef boost::shared_ptr<PinholeCamera> PinholeCameraPtr;
 typedef boost::shared_ptr<const PinholeCamera> PinholeCameraConstPtr;
 
+/**
+ * 把三维点投影到像素坐标系
+ * @tparam T double类型
+ * @param params 相机参数 (k1,k2,p1,p2,fx,fy,cx,cy)
+ * @param q  旋转四元数
+ * @param t  相机的平移信息
+ * @param P_ 三维点的坐标
+ * @param p  最终的投影点坐标(u,v)
+ */
 template <typename T>
-void
-PinholeCamera::spaceToPlane(const T* const params,
+void PinholeCamera::spaceToPlane(const T* const params,
                             const T* const q, const T* const t,
-                            const Eigen::Matrix<T, 3, 1>& P,
+                            const Eigen::Matrix<T, 3, 1>& P_,
                             Eigen::Matrix<T, 2, 1>& p)
 {
     T P_w[3];
-    P_w[0] = T(P(0));
-    P_w[1] = T(P(1));
-    P_w[2] = T(P(2));
+    P_w[0] = T(P_(0));
+    P_w[1] = T(P_(1));
+    P_w[2] = T(P_(2));
 
-    // Convert quaternion from Eigen convention (x, y, z, w)
-    // to Ceres convention (w, x, y, z)
+    // Convert quaternion from Eigen convention (x, y, z, w) to Ceres convention (w, x, y, z)
     T q_ceres[4] = {q[3], q[0], q[1], q[2]};
 
     T P_c[3];
+    // 把世界坐标系下三维点转换到相机坐标系下
     ceres::QuaternionRotatePoint(q_ceres, P_w, P_c);
 
+    // 添加平移信息
     P_c[0] += t[0];
     P_c[1] += t[1];
     P_c[2] += t[2];
 
     // project 3D object point to the image plane
-    T k1 = params[0];
+    // 将三维点投影到图像平面
+    T k1 = params[0];  // 径向畸变系数
     T k2 = params[1];
-    T p1 = params[2];
+    T p1 = params[2];  // 切向畸变系数
     T p2 = params[3];
     T fx = params[4];
     T fy = params[5];
@@ -177,18 +187,21 @@ PinholeCamera::spaceToPlane(const T* const params,
     T cy = params[7];
 
     // Transform to model plane
+    // 相机坐标系 -> 归一化坐标系
     T u = P_c[0] / P_c[2];
     T v = P_c[1] / P_c[2];
 
     T rho_sqr = u * u + v * v;
-    T L = T(1.0) + k1 * rho_sqr + k2 * rho_sqr * rho_sqr;
-    T du = T(2.0) * p1 * u * v + p2 * (rho_sqr + T(2.0) * u * u);
-    T dv = p1 * (rho_sqr + T(2.0) * v * v) + T(2.0) * p2 * u * v;
+    T L = T(1.0) + k1 * rho_sqr + k2 * rho_sqr * rho_sqr;  // 1 + k1*r+ k*r^2 径向畸变
+    T du = T(2.0) * p1 * u * v + p2 * (rho_sqr + T(2.0) * u * u); // 2 × p1 * x * y + p2 * (r^2 + 2x^2) 切向畸变
+    T dv = p1 * (rho_sqr + T(2.0) * v * v) + T(2.0) * p2 * u * v;// 2 × p2 * x * y + p1 * (r^2 + 2y^2)
 
-    u = L * u + du;
+
+    u = L * u + du;  // x_distorted =  x * 径向畸变 + 切向畸变
     v = L * v + dv;
-    p(0) = fx * (u + alpha * v) + cx;
-    p(1) = fy * v + cy;
+    // 最终投影点
+    p(0) = fx * (u + alpha * v) + cx; // u = fx * x + cx
+    p(1) = fy * v + cy;               // v = fy * y + cy
 }
 
 }

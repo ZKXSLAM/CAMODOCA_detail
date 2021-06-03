@@ -130,8 +130,8 @@ Odometry::attitude(void) const
     return m_att;
 }
 
-double*
-Odometry::attitudeData(void)
+// 该帧的里程计的欧拉角
+double* Odometry::attitudeData(void)
 {
     return m_att.data();
 }

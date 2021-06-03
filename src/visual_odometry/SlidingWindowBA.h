@@ -73,8 +73,8 @@ private:
 
     void optimize(void);
 
-    int m_N;        // 滑窗设定最大size
-    int m_n;
+    int m_N;        // 滑窗设定最大size 20
+    int m_n;        // 6
     int m_mode;
 
     Pose m_T_cam_odo;

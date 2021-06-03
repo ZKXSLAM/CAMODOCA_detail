@@ -1182,17 +1182,20 @@ void SlidingWindowBA::triangulatePoints(const Eigen::Quaterniond& q1,
     }
 }
 
-// 优化窗口中的 ？
+// 优化
 void SlidingWindowBA::optimize(void)
 {
     ceres::Problem problem;
 
     ceres::Solver::Options options;
+    // 对于大规模稀疏矩阵，增量方式用DENSE_SCHUR
     options.linear_solver_type = ceres::DENSE_SCHUR;
+    // 最大迭代次数
     options.max_num_iterations = 20;
 
     for (std::list<FramePtr>::iterator it = m_window.begin(); it != m_window.end(); ++it)
     {
+        // 遍历滑动窗口中的帧
         FramePtr& frame = *it;
 
         std::vector<Point2DFeaturePtr>& features2D = frame->features2D();
@@ -1200,13 +1203,16 @@ void SlidingWindowBA::optimize(void)
         bool optimizeFrame = false;
         for (size_t i = 0; i < features2D.size(); ++i)
         {
+            // 遍历该图像帧的每个2D特征点
             Point2DFeaturePtr& feature2D = features2D.at(i);
 
+            // 2D特征点没有3D点，则跳过
             if (!feature2D->feature3D())
             {
                 continue;
             }
 
+            // 核函数
             ceres::LossFunction* lossFunction = new ceres::CauchyLoss(1.0);
 
             if (m_mode == VO)
@@ -1217,11 +1223,12 @@ void SlidingWindowBA::optimize(void)
                                                                                           feature2D->keypoint().pt.y),
                                                                           CAMERA_POSE | POINT_3D);
 
+                // 添加残差项，优化： 1.该帧相机位姿的旋转，2.该帧相机位姿的平移，3.2D特征点对应的三维点
                 problem.AddResidualBlock(costFunction, lossFunction,
                                          frame->cameraPose()->rotationData(), frame->cameraPose()->translationData(),
                                          feature2D->feature3D()->pointData());
             }
-            else
+            else // m_mode == ODOMETRY
             {
                 ceres::CostFunction* costFunction =
                     CostFunctionFactory::instance()->generateCostFunction(k_camera,
@@ -1229,6 +1236,7 @@ void SlidingWindowBA::optimize(void)
                                                                                           feature2D->keypoint().pt.y),
                                                                           CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_3D_POSE | POINT_3D);
 
+                // 添加误差项： 优化：1.外参的旋转，2.外参的平移，3 该帧的里程计位姿.4 该帧的里程计的欧拉角 5.2D特征点对应的三维点
                 problem.AddResidualBlock(costFunction, lossFunction,
                                          m_T_cam_odo.rotationData(),
                                          m_T_cam_odo.translationData(),
@@ -1244,13 +1252,16 @@ void SlidingWindowBA::optimize(void)
         {
             if (m_mode == VO)
             {
+                // 四元数参数化
                 ceres::LocalParameterization* quaternionParameterization =
                     new ceres::QuaternionParameterization;
 
+                // 为参数块(frame->cameraPose()->rotationData())设置parameter(quaternionParameterization)
                 problem.SetParameterization(frame->cameraPose()->rotationData(), quaternionParameterization);
             }
             else
             {
+                // 在优化过程中保持指定的参数块不变
                 problem.SetParameterBlockConstant(frame->systemPose()->positionData());
                 problem.SetParameterBlockConstant(frame->systemPose()->attitudeData());
             }
@@ -1262,18 +1273,21 @@ void SlidingWindowBA::optimize(void)
         ceres::LocalParameterization* quaternionParameterization =
             new ceres::QuaternionParameterization;
 
+        // 为参数块(m_T_cam_odo.rotationData())设置parameter(quaternionParameterization,变为四元数)
         problem.SetParameterization(m_T_cam_odo.rotationData(), quaternionParameterization);
     }
 
     if ((int)m_window.size() > m_N - m_n)
     {
         std::list<FramePtr>::iterator it = m_window.begin();
-        for (int i = 0; i < m_N - m_n; ++i)
+        for (int i = 0; i < m_N - m_n; ++i) // 固定住一定数量的相机位姿
         {
             FramePtr& frame = *it;
 
             if (m_mode == VO)
             {
+                // SetParameterBlockConstant: 在优化过程中保持指定的参数块不变。
+                // 优化过程中固定住相机的旋转和平移
                 problem.SetParameterBlockConstant(frame->cameraPose()->rotationData());
                 problem.SetParameterBlockConstant(frame->cameraPose()->translationData());
             }
@@ -1284,13 +1298,14 @@ void SlidingWindowBA::optimize(void)
     else
     {
         std::list<FramePtr>::iterator it = m_window.begin();
-        for (int i = 0; i < 1; ++i)
+        for (int i = 0; i < 1; ++i) // 只固定第一帧的相机位姿
         {
             FramePtr& frame = *it;
 
             if (m_mode == VO)
             {
-                // set constant camera pose corresponding to first frame in the window
+                // SetParameterBlockConstant: 在优化过程中保持指定的参数块不变。
+                // 优化过程中固定住相机的旋转和平移
                 problem.SetParameterBlockConstant(frame->cameraPose()->rotationData());
                 problem.SetParameterBlockConstant(frame->cameraPose()->translationData());
             }
@@ -1300,7 +1315,9 @@ void SlidingWindowBA::optimize(void)
     }
 
     ceres::Solver::Summary summary;
+    // 开始优化
     ceres::Solve(options, &problem, &summary);
+    std::cout << "Sling windows BA:" << std::endl << summary.BriefReport() << std::endl;
 }
 
 }
