@@ -38,32 +38,36 @@ public:
          , preprocessImages(false)
          , saveWorkingData(true)
          , beginStage(0)
-         , optimizeIntrinsics(true)
+         , optimizeIntrinsics(false)
          , verbose(false) {};
 
-        Mode mode;
-        PoseSource poseSource;   // PoseSource::GPS_INS : PoseSource::ODOMETRY;  位姿来源
+        Mode mode;               // offline
+        PoseSource poseSource;   // 位姿来源 ODOMETRY;
         int nMotions;            // Once we reach a number of keyframes for each camera such that there are <nMotion> relative
                                  // motions between consecutive keyframes, the calibration runs automatically.
-                                 // 一旦我们获得每个摄影机的一定数量的关键帧，使得连续关键帧之间存在<nMotion>相对运动，校准将自动运行。
+                                 // 一旦我们获得每个摄影机的一定数量的关键帧，使得连续关键帧之间存在<nMotion>相对运动，校准将自动运行
+                                 // 200,可设置
 
         // monocular VO
         double minKeyframeDistance; // Minimum distance between consecutive keyframes. 连续关键帧之间的最小距离。
-                                    // (Recommended: 0.2 m)
+                                    // (Recommended: 0.2 m) 可设置
+
         size_t minVOSegmentSize;    // The VO segment will be used in calibration only if the number of
                                     // keyframes in the VO segment exceeds <minVOSegmentSize>.
                                     // 仅当VOsegment中的关键帧数超过<minVOSegmentSize>时，才会在校准中使用VOsegment。
+                                    // 15
 
         // local matching between cameras 摄像机之间的局部匹配
         double windowDistance;   // The size of the window of frames in which local matching is performed between different cameras depends on the
                                  // <windowDistance> distance that the vehicle travels from the beginning of the window to the end of the window.
                                  // The larger the distance, the longer the local matching takes.
                                  // 在不同相机之间执行局部匹配的帧窗口的大小取决于车辆从窗口的开始到窗口末端的<windowDistance>距离。距离越大，局部匹配所需时间越长。
+                                 // 3
 
-        bool preprocessImages;
-        bool saveWorkingData;  // 是否保存数据
-        int beginStage;        // 开始阶段（帧）
-        bool optimizeIntrinsics;  // 是否优化内参
+        bool preprocessImages;  // false
+        bool saveWorkingData;  // 是否保存数据 true
+        int beginStage;        // 开始阶段（帧） 0
+        bool optimizeIntrinsics;  // 是否优化内参  false，可设置
         std::string dataDir;   // 保存工作数据的地址 （/data）
         bool verbose;          // 缓存,显示额外信息
     };

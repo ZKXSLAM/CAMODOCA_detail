@@ -175,7 +175,7 @@ bool SlidingWindowBA::addFrame(FramePtr& frame)
             Eigen::Vector3d t;
             cv::cv2eigen(t_cv, t);
 
-            // 当前帧相机的位姿赋值 (暂认为是相机在世界坐标系下位姿)
+            // 当前帧相机的位姿赋值 (R_kk+1)
             frameCurr->cameraPose()->rotation() = Eigen::Quaterniond(R);
             frameCurr->cameraPose()->translation() = t;
         }
@@ -702,6 +702,7 @@ std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > Sliding
 
     for (std::list<FramePtr>::const_iterator it = m_window.begin(); it != m_window.end(); ++it)
     {
+        // 遍历每一帧
         const FrameConstPtr& frame = *it;
 
         Eigen::Matrix4d pose;
@@ -1201,12 +1202,12 @@ void SlidingWindowBA::optimize(void)
         std::vector<Point2DFeaturePtr>& features2D = frame->features2D();
 
         bool optimizeFrame = false;
-        for (size_t i = 0; i < features2D.size(); ++i)
+        for (size_t i = 0; i < features2D.size(); ++i) // 遍历该帧的每一个2D点
         {
             // 遍历该图像帧的每个2D特征点
             Point2DFeaturePtr& feature2D = features2D.at(i);
 
-            // 2D特征点没有3D点，则跳过
+            // 如果2D特征点没有3D点，则跳过
             if (!feature2D->feature3D())
             {
                 continue;
@@ -1215,8 +1216,9 @@ void SlidingWindowBA::optimize(void)
             // 核函数
             ceres::LossFunction* lossFunction = new ceres::CauchyLoss(1.0);
 
-            if (m_mode == VO)
+            if (m_mode == VO)// m_mode 就是VO
             {
+                // 构建costFunction：
                 ceres::CostFunction* costFunction =
                     CostFunctionFactory::instance()->generateCostFunction(k_camera,
                                                                           Eigen::Vector2d(feature2D->keypoint().pt.x,
@@ -1277,14 +1279,14 @@ void SlidingWindowBA::optimize(void)
         problem.SetParameterization(m_T_cam_odo.rotationData(), quaternionParameterization);
     }
 
-    if ((int)m_window.size() > m_N - m_n)
+    if ((int)m_window.size() > m_N - m_n) // 如果滑窗中帧的数量大于14
     {
         std::list<FramePtr>::iterator it = m_window.begin();
         for (int i = 0; i < m_N - m_n; ++i) // 固定住一定数量的相机位姿
         {
             FramePtr& frame = *it;
 
-            if (m_mode == VO)
+            if (m_mode == VO) // 如果是VO模式，就固定住相机的旋转和平移
             {
                 // SetParameterBlockConstant: 在优化过程中保持指定的参数块不变。
                 // 优化过程中固定住相机的旋转和平移
@@ -1295,13 +1297,14 @@ void SlidingWindowBA::optimize(void)
             ++it;
         }
     }
-    else
+    else // 如果滑窗中帧的数量<= 14
     {
         std::list<FramePtr>::iterator it = m_window.begin();
         for (int i = 0; i < 1; ++i) // 只固定第一帧的相机位姿
         {
             FramePtr& frame = *it;
 
+            // 如果是VO模式，就固定第一帧的相机位姿
             if (m_mode == VO)
             {
                 // SetParameterBlockConstant: 在优化过程中保持指定的参数块不变。

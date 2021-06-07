@@ -266,14 +266,14 @@ int main(int argc, char** argv)
     // 只有当特征分布在整个图像区域时才优化内部函数
     CamRigOdoCalibration::Options options;
   //options.mode = CamRigOdoCalibration::ONLINE;
-    options.poseSource = bUseGPS ? PoseSource::GPS_INS : PoseSource::ODOMETRY;      //位姿来源
-    options.nMotions = nMotions;                                   // 关键帧数目
-    options.minKeyframeDistance = keyframeDistance;                // 连续关键帧之间的最小距离
+    options.poseSource = bUseGPS ? PoseSource::GPS_INS : PoseSource::ODOMETRY;      //位姿来源 ODOMETRY
+    options.nMotions = nMotions;                                   // 关键帧数目 // 200,可设置
+    options.minKeyframeDistance = keyframeDistance;                // 连续关键帧之间的最小距离 (Recommended: 0.2 m) 可设置
     options.minVOSegmentSize = 15;                                 // 仅当VOsegment中的关键帧数超过<minVOSegmentSize>时，才会在校准中使用VOsegment
-    options.preprocessImages = preprocessImages;                   // 是否（有）预处理图像
-    options.optimizeIntrinsics = optimizeIntrinsics;               // 是否优化内参
-    options.saveWorkingData = true;                                // 是否保存数据
-    options.beginStage = beginStage;                               // 开始阶段（帧）
+    options.preprocessImages = preprocessImages;                   // 是否（有）预处理图像 false
+    options.optimizeIntrinsics = optimizeIntrinsics;               // 是否优化内参 false
+    options.saveWorkingData = true;                                // 是否保存数据 true
+    options.beginStage = beginStage;                               // 开始阶段（帧） 0
     options.dataDir = dataDir;                                     // 保存工作数据的地址 （/data）
     options.verbose = verbose;                                     // 缓存,显示额外信息
 

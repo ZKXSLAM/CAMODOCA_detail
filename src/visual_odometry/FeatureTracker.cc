@@ -478,12 +478,12 @@ FeatureTracker::windowedMatchingMask(const std::vector<cv::KeyPoint>& keypoints1
 /* Temporal Feature Tracker                           */
 /***************************************************/
 
-TemporalFeatureTracker::TemporalFeatureTracker(const CameraConstPtr& camera,
-                                               DetectorType detectorType,
-                                               DescriptorType descriptorType,
-                                               MatchTestType matchTestType,
-                                               bool preprocess,
-                                               const Eigen::Matrix4d& globalCameraPose)
+TemporalFeatureTracker::TemporalFeatureTracker(const CameraConstPtr& camera,  // m_camera
+                                               DetectorType detectorType,     // SURF_GPU_DETECTOR
+                                               DescriptorType descriptorType, // SURF_GPU_DESCRIPTOR
+                                               MatchTestType matchTestType,   // RATIO_GPU
+                                               bool preprocess,               // false
+                                               const Eigen::Matrix4d& globalCameraPose)  // m_camOdoTransform
  : FeatureTracker(detectorType, descriptorType, matchTestType, preprocess)
  , k_camera(camera)
  , m_init(false)
@@ -496,6 +496,12 @@ TemporalFeatureTracker::TemporalFeatureTracker(const CameraConstPtr& camera,
 
 }
 
+/**
+ * 给临时跟踪器添加帧
+ * @param frame 该帧具有相机的ID和该相机一帧的图像
+ * @param mask  相机的mask，应该为空
+ * @return
+ */
 bool TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
 {
     // 把图像帧的通道变为1赋值给m_image
@@ -537,7 +543,7 @@ bool TemporalFeatureTracker::addFrame(FramePtr& frame, const cv::Mat& mask)
     {
         m_frames.clear();
         m_frames.push_back(m_BA.currentFrame());
-        // 相机的位姿
+        // 滑动窗口中每一帧的相机在相机坐标系前后帧的位姿
         m_poses = m_BA.poses();
     }
     m_BA.setVerbose(m_verbose);
@@ -876,7 +882,7 @@ TemporalFeatureTracker::getFrames(void) const
     return m_frames;
 }
 
-// 获得相机位姿
+// 获得相机在相机坐标系前后帧的位姿
 const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& TemporalFeatureTracker::getPoses(void) const
 {
     return m_poses;

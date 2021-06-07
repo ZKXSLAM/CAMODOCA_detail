@@ -144,8 +144,8 @@ protected:
     std::vector<Point2DFeaturePtr> m_pointFeatures;
 
     SlidingWindowBA m_BA;
-    std::vector<FramePtr> m_frames;
-    std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > m_poses; // 相机的位姿
+    std::vector<FramePtr> m_frames; // 滑动窗口的每一帧？
+    std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > m_poses; // 滑动窗口中每一帧的相机在相机坐标系前后帧的位姿
 
     cv::Mat m_matchingMask;
     const float k_maxDelta;

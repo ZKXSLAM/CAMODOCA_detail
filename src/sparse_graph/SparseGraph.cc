@@ -21,13 +21,12 @@ Frame::Frame()
 PosePtr&
 Frame::cameraPose(void)
 {
-    return m_cameraPose;
+    return m_cameraPose; // frame->cameraPose()
 }
 
 PoseConstPtr
-Frame::cameraPose(void) const
-{
-    return m_cameraPose;
+Frame::cameraPose(void) const {
+    return m_cameraPose; // frame->cameraPose()
 }
 
 int&
@@ -54,7 +53,7 @@ Frame::odometryMeasurement(void) const
     return m_odometryMeasurement;
 }
 
-// 该帧的里程计位姿
+// 和图像帧时间戳一致的插值里程计位姿
 OdometryPtr& Frame::systemPose(void)
 {
     return m_systemPose;
@@ -93,7 +92,7 @@ Frame::features2D(void) const
 cv::Mat&
 Frame::image(void)
 {
-    return m_image;
+    return m_image; // 某一帧的图像
 }
 
 const cv::Mat&

@@ -22,7 +22,7 @@ namespace camodocal
 CamOdoThread::CamOdoThread(PoseSource poseSource,   // PoseSource::GPS_INS : PoseSource::ODOMETRY; 位姿来源
                            int nMotions,    // 关键帧数目
                            int cameraId,    // 第几个相机
-                           bool preprocess, // 是否（有？）预处理图片
+                           bool preprocess, // 是否预处理图片 : false
                            AtomicData<cv::Mat>* image,
                            const CameraConstPtr& camera,   // 相机指针
                            SensorDataBuffer<OdometryPtr>& odometryBuffer,  //里程计数据缓存器
@@ -186,9 +186,10 @@ CamOdoThread::signalFinished(void)
 void CamOdoThread::threadFunction(void)
 {
     // 生成临时跟踪器
-    TemporalFeatureTracker tracker(m_camera,
+    TemporalFeatureTracker tracker(m_camera, // 相机指针
                                    SURF_GPU_DETECTOR, SURF_GPU_DESCRIPTOR,
-                                   RATIO_GPU, m_preprocess, m_camOdoTransform);
+                                   RATIO_GPU, m_preprocess,  // 是否预处理图片:false
+                                   m_camOdoTransform);
     tracker.setVerbose(m_camOdoCalib.getVerbose()); //Verbose:日志显示
 
     FramePtr framePrev;
@@ -219,10 +220,10 @@ void CamOdoThread::threadFunction(void)
 
         if (m_stop) // 与跟踪失败有关
         {
-            // 获得相机位姿
+            // 获得相机在相机坐标系前后帧的位姿 思考:相机的位姿怎么来的 : 滑窗的current_frame 分解前后帧E矩阵得到
             std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > voPoses = tracker.getPoses();
 
-            if (odometryPoses.size() >= k_minVOSegmentSize) // 如果里程计位姿的维度大于等于最小VO分割尺度
+            if (odometryPoses.size() >= k_minVOSegmentSize) // 如果里程计位姿的数量大于等于最小VO分割尺度 15（远大于15）
             {
                 // 添加m_frameSegments 数据（相机，里程计位姿）
                 addCamOdoCalibData(voPoses, odometryPoses, tracker.getFrames());
@@ -259,6 +260,8 @@ void CamOdoThread::threadFunction(void)
 
             m_image->unlockData();  // 解锁××××××××××××××××××××××××××××
 
+
+            /// 保证colorImage的channels = 1
             if (image.channels() == 1)
             {
                 cv::cvtColor(image, colorImage, CV_GRAY2BGR);
@@ -269,7 +272,8 @@ void CamOdoThread::threadFunction(void)
             }
 
             // skip if current car position is too near previous position
-            // 如果当前车辆位置太接近上一个位置，则跳过
+            ///  如果当前车辆位置太接近上一个位置，则跳过
+
             OdometryPtr currOdometry;
             Eigen::Vector2d pos;
 
@@ -279,9 +283,9 @@ void CamOdoThread::threadFunction(void)
             }
             else
             {
-                m_odometryBufferMutex.lock();
+                m_odometryBufferMutex.lock();  // 加锁***********************************
 
-                OdometryPtr interpOdo;
+                OdometryPtr interpOdo;  // 对图像帧附近的里程计进行插值
                 // 如果位姿的来源是odometry，且没找到图像时间戳对应的里程计信息
                 if (m_poseSource == ODOMETRY && !m_interpOdometryBuffer.find(timeStamp, interpOdo))
                 {
@@ -300,20 +304,22 @@ void CamOdoThread::threadFunction(void)
                     }
 
 
+                    // m_interpOdometryBuffer中将插值后的里程计位姿和时间戳对应
                     m_interpOdometryBuffer.push(timeStamp, interpOdo);
                 }
 
-                m_odometryBufferMutex.unlock();
+                m_odometryBufferMutex.unlock(); // 解锁***********************************
 
 
                 Eigen::Vector3d pos;
                 if (m_poseSource == ODOMETRY)
                 {
+                    // 记录插值后的里程计的平移
                     pos = interpOdo->position();
                 }
 
-                if (framePrev.get() != 0 &&
-                    (pos - framePrev->systemPose()->position()).norm() < k_minKeyframeDistance)
+                // 前后帧里程计平移 < 最小关键帧距离
+                if (framePrev.get() != 0 && (pos - framePrev->systemPose()->position()).norm() < k_minKeyframeDistance)
                 {
                     m_image->notifyProcessingDone();
                     continue;
@@ -323,8 +329,10 @@ void CamOdoThread::threadFunction(void)
                 frame->cameraId() = m_cameraId;
                 image.copyTo(frame->image());
 
+                // 给跟踪器添加图像帧
                 bool camValid = tracker.addFrame(frame, m_camera->mask());
 
+                // 存在插值成功的里程计
                 if (interpOdo)
                 {
                     frame->odometryMeasurement() = boost::make_shared<Odometry>();
@@ -337,15 +345,17 @@ void CamOdoThread::threadFunction(void)
 
                 if (camValid)
                 {
+                    // 给odometryPoses添加该帧里程计的位姿(和图像帧时间戳一致的插值里程计位姿)
                     odometryPoses.push_back(frame->systemPose());
                 }
 
                 framePrev = frame;
 
-                if (!camValid)
+                if (!camValid) //进入了20+次
                 {
                     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > voPoses = tracker.getPoses();
 
+                    // 如果里程计位姿的数量大于等于最小VO分割尺度 15(一般都远大于15)
                     if (odometryPoses.size() >= k_minVOSegmentSize)
                     {
                         addCamOdoCalibData(voPoses, odometryPoses, tracker.getFrames());
@@ -366,12 +376,15 @@ void CamOdoThread::threadFunction(void)
 #endif
 
         int currentMotionCount = 0;
+        // 如果里程计位姿的数量大于等于最小VO分割尺度 15
         if (odometryPoses.size() >= k_minVOSegmentSize)
         {
             currentMotionCount = odometryPoses.size() - 1;
         }
 
         // visualize feature tracks
+        /// 可视化
+        
         std::ostringstream oss;
         oss << "# motions: " << m_camOdoCalib.getCurrentMotionCount() + currentMotionCount << " | "
             << "# track breaks: " << trackBreaks;
@@ -397,6 +410,8 @@ void CamOdoThread::threadFunction(void)
         baseline += thickness;
 
         // center the text horizontally and at bottom of image
+        /// 将文本水平居中并置于图像底部
+
         cv::Point textOrg((m_sketch.cols - textSize.width) / 2,
                            m_sketch.rows - textSize.height - 10);
         cv::putText(m_sketch, status, textOrg, fontFace, fontScale,
@@ -410,6 +425,7 @@ void CamOdoThread::threadFunction(void)
         }
     }
 
+    // 没有estimate
     if (!m_camOdoTransformUseEstimate)
     {
 
@@ -420,20 +436,20 @@ void CamOdoThread::threadFunction(void)
         m_camOdoTransform = H_cam_odo;
     }
 
-    {
-        static boost::mutex mutex;
-        boost::mutex::scoped_lock lock(mutex);
 
-        if (m_camOdoTransformUseEstimate)
-            std::cout << "# INFO: Use provided odometry estimate for camera " << m_cameraId << "..." << std::endl;
-        else
-            // # INFO: Calibrating odometry - camera 0...
-            std::cout << "# INFO: Calibrating odometry - camera " << m_cameraId << "..." << std::endl;
+    static boost::mutex mutex;
+    boost::mutex::scoped_lock lock(mutex);
 
-        std::cout << "Rotation: " << std::endl << m_camOdoTransform.block<3,3>(0,0) << std::endl;
-        std::cout << "Translation: " << std::endl << m_camOdoTransform.block<3,1>(0,3).transpose() << std::endl;
+    if (m_camOdoTransformUseEstimate)
+        std::cout << "# INFO: Use provided odometry estimate for camera " << m_cameraId << "..." << std::endl;
+    else
+        // # INFO: Calibrating odometry - camera 0...
+        std::cout << "# INFO: Calibrating odometry - camera " << m_cameraId << "..." << std::endl;
 
-    }
+    std::cout << "Rotation: " << std::endl << m_camOdoTransform.block<3,3>(0,0) << std::endl;
+    std::cout << "Translation: " << std::endl << m_camOdoTransform.block<3,1>(0,3).transpose() << std::endl;
+
+
 
     m_running = false;
 
@@ -441,6 +457,12 @@ void CamOdoThread::threadFunction(void)
 }
 
 // 添加m_frameSegments 数据（相机，里程计位姿）
+/**
+ *
+ * @param camPoses  15+帧的相机位姿
+ * @param odoPoses  15+帧的里程计位姿
+ * @param frameSegment
+ */
 void CamOdoThread::addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& camPoses,
                                  const std::vector<OdometryPtr>& odoPoses,
                                  std::vector<FramePtr>& frameSegment)
@@ -467,11 +489,12 @@ void CamOdoThread::addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::
     for (size_t i = 1; i < odoPoses.size(); ++i)
     {
         /// 因为整个系统是刚体，所以相同变化下里程计的旋转和相机的旋转是一致的。认为这里可能是为了两个相乘求误差
-        // To(i) * R = To(i-1)
+
+        // To(i) * To(i-1)o(i) = To(i-1) => To(i-1)o(i) = To(i)^-1 * To(i-1);  To(i-1)o(i)：表示里程计k帧到k-1帧得到变换矩阵
         Eigen::Matrix4d relativeOdometryPose = odoPoses.at(i)->toMatrix().inverse() * odoPoses.at(i - 1)->toMatrix();
         odoMotions.push_back(relativeOdometryPose);
 
-        // Tc(i) = R * Tc(i-1)
+        // Tc(i) = Tc(i)c(i-1)* Tc(i-1) => Tc(i)c(i-1)  = Tc(i) *  Tc(i-1)^-1; Tc(i)c(i-1):表示相机k-1帧到k帧的变换矩阵
         Eigen::Matrix4d relativeCameraPose = camPoses.at(i) * camPoses.at(i - 1).inverse();
         camMotions.push_back(relativeCameraPose);
 
@@ -483,6 +506,7 @@ void CamOdoThread::addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::
         exit(0);
     }
 
+    // frameSegment = m_frames :  滑动窗口的每一帧？
     m_frameSegments.push_back(frameSegment);
 }
 

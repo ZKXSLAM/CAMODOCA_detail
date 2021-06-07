@@ -154,6 +154,12 @@ CameraSystem::getCamera(int idx) const
     return m_cameras.at(idx);
 }
 
+/**
+ * 在m_cameraMap添加<camera,idx>的映射
+ * @param idx     相机ID
+ * @param camera  相机指针
+ * @return
+ */
 bool CameraSystem::setCamera(int idx, CameraPtr& camera)
 {
     if (idx < 0 || idx >= m_cameraCount)
@@ -212,15 +218,20 @@ CameraSystem::getGlobalCameraPose(const CameraConstPtr& camera) const
     return m_globalPoses.at(idx);
 }
 
-bool
-CameraSystem::setGlobalCameraPose(int idx, const Eigen::Matrix4d& pose)
+/**
+ * 给m_globalPoses的每个相机 赋值 世界坐标系下位姿
+ * @param idx   相机id
+ * @param pose  相机在世界坐标下的位姿
+ * @return
+ */
+bool CameraSystem::setGlobalCameraPose(int idx, const Eigen::Matrix4d& pose)
 {
     if (idx < 0 || idx >= m_cameraCount)
     {
         return false;
     }
 
-    m_globalPoses.at(idx) = pose; // 每一个相机赋值世界坐标系下位姿
+    m_globalPoses.at(idx) = pose; // 给m_globalPoses的每个相机 赋值 世界坐标系下位姿
 
     return true;
 }

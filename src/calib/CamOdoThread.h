@@ -69,22 +69,22 @@ private:
                       TemporalFeatureTracker& tracker);
 #endif
 
-    PoseSource m_poseSource;
+    PoseSource m_poseSource;  // m_poseSource == ODOMETRY
 
     boost::shared_ptr<boost::thread> m_thread;
     int m_cameraId;                 // 第几个相机
-    bool m_preprocess;              // 是否（有？）预处理图片
+    bool m_preprocess;              // 是否预处理图片: false
     volatile bool m_running; // poor man's synchronisation
     boost::signals2::signal<void ()> m_signalFinished;
 
     CamOdoCalibration m_camOdoCalib;
-    std::vector<std::vector<FramePtr> > m_frameSegments;
+    std::vector<std::vector<FramePtr> > m_frameSegments; // 存储滑动窗口的每一帧
 
     AtomicData<cv::Mat>* m_image;    // 某一帧的图像
     const CameraConstPtr m_camera;   // 相机指针
     SensorDataBuffer<OdometryPtr>& m_odometryBuffer;
-    SensorDataBuffer<OdometryPtr>& m_interpOdometryBuffer;
-    boost::mutex& m_odometryBufferMutex;
+    SensorDataBuffer<OdometryPtr>& m_interpOdometryBuffer;  // 存储插值后的里程计位姿
+    boost::mutex& m_odometryBufferMutex;  // 锁
     SensorDataBuffer<PosePtr>& m_gpsInsBuffer;
     SensorDataBuffer<PosePtr>& m_interpGpsInsBuffer;
     boost::mutex& m_gpsInsBufferMutex;
@@ -96,7 +96,7 @@ private:
     bool& m_stop;
 
     const double k_minKeyframeDistance;   // 最小关键帧距离
-    const size_t k_minVOSegmentSize;      // 最小VO segmen大小
+    const size_t k_minVOSegmentSize;      // 最小VO segment大小 15
     const double k_odometryTimeout;
 };
 

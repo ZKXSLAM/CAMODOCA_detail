@@ -46,7 +46,7 @@ private:
 
     std::vector<CameraPtr> m_cameras;
     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > m_globalPoses;
-    boost::unordered_map<CameraPtr,int> m_cameraMap;
+    boost::unordered_map<CameraPtr,int> m_cameraMap;    // <相机指针，相机编号>相机指针与相机编号对应的map
 };
 
 typedef boost::shared_ptr<CameraSystem> CameraSystemPtr;

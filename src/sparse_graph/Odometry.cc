@@ -58,16 +58,14 @@ Odometry::z(void) const
     return m_pos(2);
 }
 
-Eigen::Vector3d&
-Odometry::position(void)
+Eigen::Vector3d& Odometry::position(void)
 {
-    return m_pos;
+    return m_pos; // 插值后的里程计的平移
 }
 
-const Eigen::Vector3d&
-Odometry::position(void) const
+const Eigen::Vector3d& Odometry::position(void) const
 {
-    return m_pos;
+    return m_pos; // 插值后的里程计的平移
 }
 
 double*

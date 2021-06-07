@@ -221,6 +221,7 @@ void CamRigOdoCalibration::start(void)
             cv::destroyWindow(m_cameras.at(i)->cameraName());
         }
 
+        // 构建graph，重要函数
         buildGraph();
 
         m_running = true;
@@ -316,13 +317,14 @@ void CamRigOdoCalibration::buildGraph(void)
     // m_camOdoThreads.size() : 1
     std::vector<std::set<int> > cameraIdSets(m_camOdoThreads.size());
 
-    for (size_t i = 0; i < m_camOdoThreads.size(); ++i) // 对于每一个camodo线程
+    for (size_t i = 0; i < m_camOdoThreads.size(); ++i) // 对于每一个cam-odo线程
     {
         CamOdoThread* camOdoThread = m_camOdoThreads.at(i);
 
-        // 将m_camOdoThread的相机ID和m_cameras的相机id对应起来 // camOdoThread用于计算cam-odo-transform // m_cameras 存储相机模型
+        //  camOdoThread用于计算cam-odo-transform // m_cameras 存储相机模型
+        // 在m_cameraMap添加<camera,idx>的映射
         m_cameraSystem.setCamera(camOdoThread->cameraId(), m_cameras.at(camOdoThread->cameraId()));
-        // 将m_camOdoThread的相机ID和m_globalPoses相机id对应的位姿对应起来
+        // 给m_globalPoses的每个相机 赋值 世界坐标系下位姿
         m_cameraSystem.setGlobalCameraPose(camOdoThread->cameraId(),
                                            camOdoThread->camOdoTransform());
 

@@ -304,8 +304,7 @@ SensorDataBuffer<T>::nearest(uint64_t timestamp, T& dataBefore, T& dataAfter)
 }
 
 template <class T>
-bool
-SensorDataBuffer<T>::current(T& data)
+bool SensorDataBuffer<T>::current(T& data)
 {
     boost::mutex::scoped_lock lock(mGlobalMutex);
 
@@ -321,8 +320,7 @@ SensorDataBuffer<T>::current(T& data)
 }
 
 template <class T>
-void
-SensorDataBuffer<T>::push(uint64_t timestamp, const T& data)
+void SensorDataBuffer<T>::push(uint64_t timestamp, const T& data)
 {
     boost::mutex::scoped_lock lock(mGlobalMutex);
 

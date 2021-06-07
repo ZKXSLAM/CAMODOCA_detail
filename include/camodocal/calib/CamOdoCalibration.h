@@ -65,7 +65,7 @@ private:
         std::vector<Motion, Eigen::aligned_allocator<Motion> > camMotions;
     } MotionSegment;
 
-    std::vector<MotionSegment> mSegments;
+    std::vector<MotionSegment> mSegments; // 存储每一个MotionSegment，MotionSegment为每
 
     size_t mMinMotions;
 

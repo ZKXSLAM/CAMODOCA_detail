@@ -34,20 +34,6 @@ opencv2/core/core.hpp
 opencv2/calib3d/calib3d.hpp
 -
 
-/home/zoukaixiang/code/camodocal/src/npoint/five-point/modelest.cpp
-precomp.hpp
-/home/zoukaixiang/code/camodocal/src/npoint/five-point/precomp.hpp
-_modelest.h
-/home/zoukaixiang/code/camodocal/src/npoint/five-point/_modelest.h
-algorithm
--
-iterator
--
-limits
--
-iostream
--
-
 /home/zoukaixiang/code/camodocal/src/npoint/five-point/precomp.hpp
 cvconfig.h
 /home/zoukaixiang/code/camodocal/src/npoint/five-point/cvconfig.h

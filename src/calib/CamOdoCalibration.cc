@@ -78,8 +78,13 @@ CamOdoCalibration::CamOdoCalibration()
 
 }
 
-bool
-CamOdoCalibration::addMotionSegment(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& H_cam,
+/**
+ *
+ * @param H_cam  存储(与图像帧匹配)相机每一帧的k-1帧到k帧得到变换矩阵
+ * @param H_odo  存储(与图像帧匹配)里程计每一帧的k帧到k-1帧得到变换矩阵
+ * @return
+ */
+bool CamOdoCalibration::addMotionSegment(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& H_cam,
                                     const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& H_odo)
 {
     if (H_odo.size() != H_cam.size())
@@ -88,17 +93,23 @@ CamOdoCalibration::addMotionSegment(const std::vector<Eigen::Matrix4d, Eigen::al
     }
 
     MotionSegment segment;
+
+    // 对于每一帧
     for (size_t i = 0; i < H_odo.size(); ++i)
     {
+        // 每一帧里程计的旋转
         Eigen::Matrix3d R_odo = H_odo.at(i).block<3,3>(0,0);
         Eigen::Vector3d t_odo = H_odo.at(i).block<3,1>(0,3);
 
         Motion odoMotion;
+        // 里程计前后帧旋转的欧拉角
         odoMotion.rotation = RotationToAngleAxis(R_odo);
+        // 里程计前后帧的平移
         odoMotion.translation = t_odo;
 
         segment.odoMotions.push_back(odoMotion);
 
+        // 同理存储相机的运动(位姿)
         Eigen::Matrix3d R_cam = H_cam.at(i).block<3,3>(0,0);
         Eigen::Vector3d t_cam = H_cam.at(i).block<3,1>(0,3);
 
@@ -110,14 +121,14 @@ CamOdoCalibration::addMotionSegment(const std::vector<Eigen::Matrix4d, Eigen::al
         segment.camMotions.push_back(camMotion);
     }
 
+    // mSegment存储每一个segment
     mSegments.push_back(segment);
 
     return true;
 }
 
-
-size_t
-CamOdoCalibration::getCurrentMotionCount(void) const
+// 统计每一个mSegments的odoMotions的个数
+size_t CamOdoCalibration::getCurrentMotionCount(void) const
 {
     size_t motionCount = 0;
 
@@ -141,9 +152,8 @@ CamOdoCalibration::setMotionCount(size_t count)
     mMinMotions = count;
 }
 
-
-bool
-CamOdoCalibration::calibrate(Eigen::Matrix4d& H_cam_odo)
+// 校准
+bool CamOdoCalibration::calibrate(Eigen::Matrix4d& H_cam_odo)
 {
     std::vector<double> scales;
 
@@ -165,6 +175,7 @@ CamOdoCalibration::calibrate(Eigen::Matrix4d& H_cam_odo)
 
         for (size_t j = 0; j < segment.odoMotions.size(); ++j)
         {
+            // 记录每个segment中每个里程计的旋转
             rvecsOdo.at(i).push_back(segment.odoMotions.at(j).rotation);
             tvecsOdo.at(i).push_back(segment.odoMotions.at(j).translation);
             rvecsCam.at(i).push_back(segment.camMotions.at(j).rotation);
@@ -187,8 +198,17 @@ CamOdoCalibration::setVerbose(bool on)
     mVerbose = on;
 }
 
-bool
-CamOdoCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs1,
+/**
+ *
+ * @param rvecs1  记录每个segment中每个里程计的旋转Vec
+ * @param tvecs1  记录每个segment中每个里程计的平移Vec
+ * @param rvecs2  记录每个segment中每个相机的旋转Vec
+ * @param tvecs2  记录每个segment中每个相机的平移Vec
+ * @param H_cam_odo  输出值:
+ * @param scales     输出值:
+ * @return
+ */
+bool CamOdoCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs1,
                             const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& tvecs1,
                             const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs2,
                             const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& tvecs2,
@@ -196,9 +216,11 @@ CamOdoCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, Eigen
                             std::vector<double>& scales) const
 {
     // Estimate R_yx first
+    /// 先估计 R_yx
     Eigen::Matrix3d R_yx;
     estimateRyx(rvecs1, tvecs1, rvecs2, tvecs2, R_yx);
 
+    //
     int segmentCount = rvecs1.size();
     int motionCount = 0;
     for (int segmentId = 0; segmentId < segmentCount; ++segmentId)
@@ -346,13 +368,22 @@ CamOdoCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, Eigen
     return true;
 }
 
-bool
-CamOdoCalibration::estimateRyx(const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs1,
+/**
+ * 估计R_yx
+ * @param rvecs1  记录每个segment中每个里程计的旋转Vec
+ * @param tvecs1  记录每个segment中每个里程计的平移Vec
+ * @param rvecs2  记录每个segment中每个相机的旋转Vec
+ * @param tvecs2  记录每个segment中每个相机的平移Vec
+ * @param R_yx
+ * @return
+ */
+bool CamOdoCalibration::estimateRyx(const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs1,
                                const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& tvecs1,
                                const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs2,
                                const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& tvecs2,
                                Eigen::Matrix3d& R_yx) const
 {
+    // 记录motion个数
     size_t motionCount = 0;
     for (size_t i = 0; i < rvecs1.size(); ++i)
     {
@@ -367,10 +398,11 @@ CamOdoCalibration::estimateRyx(const std::vector<std::vector<Eigen::Vector3d, Ei
     {
         for (size_t j = 0; j < rvecs1.at(i).size(); ++j)
         {
+            // 每个segment中每个里程计的旋转
             const Eigen::Vector3d& rvec1 = rvecs1.at(i).at(j);
-            //const Eigen::Vector3d& tvec1 = tvecs1.at(i).at(j);
+            // 每个segment中每个相机的旋转
             const Eigen::Vector3d& rvec2 = rvecs2.at(i).at(j);
-            //const Eigen::Vector3d& tvec2 = tvecs2.at(i).at(j);
+
 
             // Remove zero rotation.
             if (rvec1.norm() == 0 || rvec2.norm() == 0)
@@ -384,18 +416,21 @@ CamOdoCalibration::estimateRyx(const std::vector<std::vector<Eigen::Vector3d, Ei
             Eigen::Quaterniond q2;
             q2 = Eigen::AngleAxisd(rvec2.norm(), rvec2.normalized());
 
+            // 论文(4)，论文(6)对应，四元数左右乘
             M.block<4,4>(mark * 4, 0) = QuaternionMultMatLeft(q1) - QuaternionMultMatRight(q2);
 
-            ++mark;
+            ++mark;  // 对应计算的帧数
         }
     }
 
+    // SVD分解求qyx
     Eigen::JacobiSVD<Eigen::MatrixXd> svd(M, Eigen::ComputeFullU | Eigen::ComputeFullV);
-
+    // 对应论文（7），将q_yx用V的最后两列右奇异向量v3，v4表示：
     Eigen::Vector4d t1 = svd.matrixV().block<4,1>(0,2);
     Eigen::Vector4d t2 = svd.matrixV().block<4,1>(0,3);
 
     // solve constraint for q_yz: xy = -zw
+    // 求解约束，对应论文（5）xy = -zw 虽然不太清楚为什么这么求解
     double s[2];
     if (!solveQuadraticEquation(t1(0) * t1(1) + t1(2) * t1(3),
                                 t1(0) * t2(1) + t1(1) * t2(0) + t1(2) * t2(3) + t1(3) * t2(2),
@@ -403,6 +438,7 @@ CamOdoCalibration::estimateRyx(const std::vector<std::vector<Eigen::Vector3d, Ei
                                 s[0], s[1]))
     {
         std::cout << "# ERROR: Quadratic equation cannot be solved due to negative determinant." << std::endl;
+        // 由于行列式为负，二次方程无法求解。
         return false;
     }
 
@@ -413,20 +449,22 @@ CamOdoCalibration::estimateRyx(const std::vector<std::vector<Eigen::Vector3d, Ei
     {
         double t = s[i] * s[i] * t1.dot(t1) + 2 * s[i] * t1.dot(t2) + t2.dot(t2);
 
-        // solve constraint ||q_yx|| = 1
-        double b = sqrt(1.0 / t);
-        double a = s[i] * b;
+        // solve constraint 求解约束
+        double b = sqrt(1.0 / t); // 对应λ2
+        double a = s[i] * b;         // 对应λ1
 
         Eigen::Quaterniond q_yx;
-        q_yx.coeffs() = a * t1 + b * t2;
+        // .coeffs : 以顺序为（x,y,z,w）表示
+        q_yx.coeffs() = a * t1 + b * t2; // 对应q_yx = λ1*v3 + λ2*v4
         R_yxs[i] = q_yx.toRotationMatrix();
 
         double r, p;
+        // 旋转矩阵转变为欧拉角
         mat2RPY(R_yxs[i], r, p, yaw[i]);
     }
     if (fabs(yaw[0]) < fabs(yaw[1]))
     {
-        R_yx = R_yxs[0];
+        R_yx = R_yxs[0]; // 取小的角度作为yaw角
     }
     else
     {
@@ -484,8 +522,8 @@ CamOdoCalibration::refineEstimate(Eigen::Matrix4d& H_cam_odo, std::vector<double
     H_cam_odo.block<3,3>(0,0) = q.toRotationMatrix();
 }
 
-bool
-CamOdoCalibration::solveQuadraticEquation(double a, double b, double c, double& x1, double& x2) const
+// 解二次方程： ax^2+bx+c =0 =>x1,2 = [-b+-sqrt(b^2-4ac)] / 2a
+bool CamOdoCalibration::solveQuadraticEquation(double a, double b, double c, double& x1, double& x2) const
 {
     if (fabs(a) < 1e-12)
     {
