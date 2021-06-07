@@ -330,11 +330,12 @@ void CamRigOdoCalibration::buildGraph(void)
 
         cameraIdSets[i].insert(camOdoThread->cameraId());  // 存放相机的编号 （相机编号set存相机编号？）
 
+        // 遍历每个滑动窗口中的每一帧 ??
         for (size_t j = 0; j < camOdoThread->frameSegments().size(); ++j)
         {
             // 开始时间是camodo线程第j个frameSegments 的起始相机位姿的时间戳
             uint64_t start = camOdoThread->frameSegments().at(j).front()->cameraPose()->timeStamp();
-            // 开始时间是camodo线程第j个frameSegments 的最后一个相机位姿的时间戳
+            // 结束时间是camodo线程第j个frameSegments 的最后一个相机位姿的时间戳
             uint64_t end = camOdoThread->frameSegments().at(j).back()->cameraPose()->timeStamp();
 
             // 时间范围对应一个相机ID
@@ -417,6 +418,7 @@ void CamRigOdoCalibration::buildGraph(void)
         std::sort(frames.begin(), frames.end(), compareFrameTimeStamp);
 
         size_t frameId = 0;
+        // 给每个frame赋属性
         while (frameId < frames.size())
         {
             FrameSetPtr frameSet = boost::make_shared<FrameSet>();               // FrameSet的指针

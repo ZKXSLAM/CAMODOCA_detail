@@ -498,7 +498,7 @@ TemporalFeatureTracker::TemporalFeatureTracker(const CameraConstPtr& camera,  //
 
 /**
  * 给临时跟踪器添加帧
- * @param frame 该帧具有相机的ID和该相机一帧的图像
+ * @param frame 该帧具有 相机的ID 和 该相机一帧的图像
  * @param mask  相机的mask，应该为空
  * @return
  */
@@ -873,7 +873,7 @@ TemporalFeatureTracker::getMatches(std::vector<cv::Point2f>& matchedPoints,
 std::vector<FramePtr>&
 TemporalFeatureTracker::getFrames(void)
 {
-    return m_frames;
+    return m_frames; // 滑动窗口的每一帧
 }
 
 const std::vector<FramePtr>&

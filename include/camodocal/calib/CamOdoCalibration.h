@@ -65,7 +65,8 @@ private:
         std::vector<Motion, Eigen::aligned_allocator<Motion> > camMotions;
     } MotionSegment;
 
-    std::vector<MotionSegment> mSegments; // 存储每一个MotionSegment，MotionSegment为每
+    /// 存储每一个MotionSegment，MotionSegment为每次跟踪失败或停止前每一个相机帧对应的相机帧间位姿和里程计位姿
+    std::vector<MotionSegment> mSegments;
 
     size_t mMinMotions;
 

@@ -491,7 +491,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
 
         prune(PRUNE_BEHIND_CAMERA, ODOMETRY);
 
-        // find local inter-map 3D-3D correspondences
+        // find local inter-map 3D-3D correspondences 查找局部地图间的3D-3D对应关系
         std::vector<Correspondence2D2D> localInterMap2D2D;
         findLocalInterMap2D2DCorrespondences(localInterMap2D2D);
 
@@ -684,6 +684,7 @@ void CameraRigBA::run(int beginStage, bool optimizeIntrinsics,
             std::cout << "# INFO: Running BA on odometry data -> optimize CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE | POINT_3D ..." << std::endl;
 
             // perform BA to optimize extrinsics, odometry poses, and scene points
+            // 执行BA以优化外参、里程计姿势和场景点
             optimize(CAMERA_ODOMETRY_TRANSFORM | ODOMETRY_6D_POSE | POINT_3D, true);
         }
 
@@ -1036,6 +1037,7 @@ void CameraRigBA::triangulateFeatureCorrespondences(void)
 {
     // remove 3D scene points
     // 删除三维场景点
+    // m_graph.frameSetSegments().size() = 0;
     for (size_t i = 0; i < m_graph.frameSetSegments().size(); ++i)
     {
         FrameSetSegment& segment = m_graph.frameSetSegment(i);
@@ -1302,8 +1304,7 @@ void CameraRigBA::find2D2DCorrespondences(const std::vector<Point2DFeaturePtr>& 
     }
 }
 
-void
-CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D>& correspondences2D2D,
+void CameraRigBA::findLocalInterMap2D2DCorrespondences(std::vector<Correspondence2D2D>& correspondences2D2D,
                                                   double reprojErrorThresh)
 {
     int segmentId = 0;

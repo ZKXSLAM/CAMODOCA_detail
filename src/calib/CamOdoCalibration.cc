@@ -46,9 +46,12 @@ public:
         T q_coeffs[4] = {q.w(), q.x(), q.y(), q.z()};
         Eigen::Matrix<T,3,3> R = QuaternionToRotation<T>(q_coeffs);
 
+        /// 对应论文最后的整体refine
+        // 对应论(2): 平移的残差 = (R(q_oi+1oi) - I) * p_oc - sj * R_oc * t_ci+1ci + t_oi+1oi
         Eigen::Matrix<T,3,1> t_err = (R1 - Eigen::Matrix<T,3,3>::Identity()) * t
                                      - (scale[0] * R * t2) + t1;
 
+        // 对应论文(1): 旋转的残差 = q_oc^-1 * q_oi+1oi^-1 * q_oc * q_ci+1ci
         Eigen::Quaternion<T> q_err = q.conjugate() * q1 * q * q2.conjugate();
 
         T q_err_coeffs[4] = {q_err.w(), q_err.x(), q_err.y(), q_err.z()};
@@ -152,7 +155,7 @@ CamOdoCalibration::setMotionCount(size_t count)
     mMinMotions = count;
 }
 
-// 校准
+// 计算出外参
 bool CamOdoCalibration::calibrate(Eigen::Matrix4d& H_cam_odo)
 {
     std::vector<double> scales;
@@ -183,6 +186,7 @@ bool CamOdoCalibration::calibrate(Eigen::Matrix4d& H_cam_odo)
         }
     }
 
+    // 计算出外参
     return estimate(rvecsOdo, tvecsOdo, rvecsCam, tvecsCam, H_cam_odo, scales);
 }
 
@@ -200,12 +204,12 @@ CamOdoCalibration::setVerbose(bool on)
 
 /**
  *
- * @param rvecs1  记录每个segment中每个里程计的旋转Vec
- * @param tvecs1  记录每个segment中每个里程计的平移Vec
- * @param rvecs2  记录每个segment中每个相机的旋转Vec
- * @param tvecs2  记录每个segment中每个相机的平移Vec
- * @param H_cam_odo  输出值:
- * @param scales     输出值:
+ * @param rvecs1  记录每个segment中 每个里程计 的 旋转Vec
+ * @param tvecs1  记录每个segment中 每个里程计 的 平移Vec
+ * @param rvecs2  记录每个segment中 每个相机 的 旋转Vec
+ * @param tvecs2  记录每个segment中 每个相机 的 平移Vec
+ * @param H_cam_odo  输出值:相机到里程计的外参
+ * @param scales     输出值:外参的尺度
  * @return
  */
 bool CamOdoCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs1,
@@ -216,11 +220,12 @@ bool CamOdoCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, 
                             std::vector<double>& scales) const
 {
     // Estimate R_yx first
-    /// 先估计 R_yx
+    /// 先估计 R_yx; 对应论文求解roll和pitch
+
     Eigen::Matrix3d R_yx;
     estimateRyx(rvecs1, tvecs1, rvecs2, tvecs2, R_yx);
 
-    //
+    // rvecs1.size()大小 = MotionSegment，MotionSegment为每次跟踪失败或停止前每一个相机帧对应的相机帧间位姿和里程计位姿
     int segmentCount = rvecs1.size();
     int motionCount = 0;
     for (int segmentId = 0; segmentId < segmentCount; ++segmentId)
@@ -232,11 +237,15 @@ bool CamOdoCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, 
     Eigen::MatrixXd w = Eigen::MatrixXd::Zero(motionCount * 2, 1);
 
     int mark = 0;
+    // 对每个segment求解论文的9,10
     for (int segmentId = 0; segmentId < segmentCount; ++segmentId)
     {
+        // 每个segment
         for (size_t motionId = 0; motionId < rvecs1.at(segmentId).size(); ++motionId)
         {
+            // 当前segment中 该帧 里程计的旋转Vec
             const Eigen::Vector3d& rvec1 = rvecs1.at(segmentId).at(motionId);
+
             const Eigen::Vector3d& tvec1 = tvecs1.at(segmentId).at(motionId);
             const Eigen::Vector3d& rvec2 = rvecs2.at(segmentId).at(motionId);
             const Eigen::Vector3d& tvec2 = tvecs2.at(segmentId).at(motionId);
@@ -249,23 +258,34 @@ bool CamOdoCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, 
             }
 
             Eigen::Quaterniond q1;
+
+            // AngleAxisd:旋转向量（3X1）
+            // 把旋转向量赋值给四元数q1
+            // q1 = [ cosϕ  -sinϕ ]
+            //      [ sinϕ   cosϕ ]
             q1 = Eigen::AngleAxisd(rvec1.norm(), rvec1.normalized());
 
             Eigen::Matrix2d J;
+            // 对应论文（9）的J
             J = q1.toRotationMatrix().block<2,2>(0,0) - Eigen::Matrix2d::Identity();
 
             // project tvec2 to plane with normal defined by 3rd row of R_yx
+            /// 将 相机的平移 投影到由R_yx 第三行（Z轴）定义为法线的平面
             Eigen::Vector3d n;
             n = R_yx.row(2);
 
+            // pi是相机k到k+1帧的平移转到q_yx坐标的值 ??
             Eigen::Vector3d pi = R_yx * (tvec2 - tvec2.dot(n) * n);
 
             Eigen::Matrix2d K;
+            // 对应论文（9）的K
             K << pi(0), -pi(1), pi(1), pi(0);
-
+            std::cout << "mark : " << mark << std::endl;
+            // 对应论文（10）
             G.block<2,2>(mark * 2, 0) = J;
             G.block<2,2>(mark * 2, 2 + segmentId * 2) = K;
 
+            // 对应推导的（14）的w
             w.block<2,1>(mark * 2, 0) = tvec1.block<2,1>(0,0);
 
             ++mark;
@@ -273,11 +293,14 @@ bool CamOdoCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, 
     }
 
     Eigen::MatrixXd m(2 + segmentCount * 2, 1);
+    // 对应论文（9）
     m = G.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(w);
 
+    // 对应论文（11）
     Eigen::Vector2d t(-m(0), -m(1));
 
     std::vector<double> alpha_hypos;
+    // segmentId 对应 论文中的 VOsegment
     for (int segmentId = 0; segmentId < segmentCount; ++segmentId)
     {
         double alpha = atan2(m(2 + segmentId * 2 + 1), m(2 + segmentId * 2));
@@ -287,9 +310,11 @@ bool CamOdoCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, 
         scales.push_back(scale);
     }
 
+    // 由于我们对于α(yaw)会有m个假设，可以通过最小化代价函数来计算最佳的α
     double errorMin = std::numeric_limits<double>::max();
     double alpha_best = 0.0;
 
+    // 遍历所有的假设，取差值最小的α(yaw)
     for (size_t i = 0; i < alpha_hypos.size(); ++i)
     {
         double error = 0.0;
@@ -304,22 +329,28 @@ bool CamOdoCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, 
                 const Eigen::Vector3d& rvec2 = rvecs2.at(segmentId).at(motionId);
                 const Eigen::Vector3d& tvec2 = tvecs2.at(segmentId).at(motionId);
 
+                // 对应论文(12)
                 Eigen::Quaterniond q1;
                 q1 = Eigen::AngleAxisd(rvec1.norm(), rvec1.normalized());
 
                 Eigen::Matrix3d N;
+                // 对应R(q_Oi+1Oi)-I
                 N = q1.toRotationMatrix() - Eigen::Matrix3d::Identity();
 
+                // 对应R(α)R(q_yx)
                 Eigen::Matrix3d R = Eigen::AngleAxisd(alpha, Eigen::Vector3d::UnitZ()) * R_yx;
 
                 // project tvec2 to plane with normal defined by 3rd row of R
+                /// 将 相机的帧间平移 投影到由R的第三行定义的法线的平面
                 Eigen::Vector3d n;
                 n = R.row(2);
 
+                // 对应t_ck+1ck
                 Eigen::Vector3d pc = tvec2 - tvec2.dot(n) * n;
-//                    Eigen::Vector3d pc = tvec2;
 
+                // 对应R(α)R(q_yx)t_ck+1ck
                 Eigen::Vector3d A = R * pc;
+                // 对应R(q_Oi+1Oi)-I×t_oc + t_Oi+1Oi
                 Eigen::Vector3d b = N * (Eigen::Vector3d() << t, 0.0).finished() + tvec1;
 
                 error += (A * scales.at(segmentId) - b).norm();
@@ -350,6 +381,7 @@ bool CamOdoCalibration::estimate(const std::vector<std::vector<Eigen::Vector3d, 
         std::cout << std::endl;
     }
 
+    // 进行整体的refine
     refineEstimate(H_cam_odo, scales, rvecs1, tvecs1, rvecs2, tvecs2);
 
     if (mVerbose)
@@ -464,7 +496,7 @@ bool CamOdoCalibration::estimateRyx(const std::vector<std::vector<Eigen::Vector3
     }
     if (fabs(yaw[0]) < fabs(yaw[1]))
     {
-        R_yx = R_yxs[0]; // 取小的角度作为yaw角
+        R_yx = R_yxs[0];
     }
     else
     {
@@ -473,8 +505,16 @@ bool CamOdoCalibration::estimateRyx(const std::vector<std::vector<Eigen::Vector3
     return true;
 }
 
-void
-CamOdoCalibration::refineEstimate(Eigen::Matrix4d& H_cam_odo, std::vector<double>& scales,
+/**
+ * 大优化Refine
+ * @param H_cam_odo  相机到里程计的位姿
+ * @param scales     尺度
+ * @param rvecs1     记录每个segment中 每个里程计 的 旋转Vec
+ * @param tvecs1     记录每个segment中 每个里程计 的 平移Vec
+ * @param rvecs2     记录每个segment中 每个相机 的 旋转Vec
+ * @param tvecs2     记录每个segment中 每个相机 的 平移Vec
+ */
+void CamOdoCalibration::refineEstimate(Eigen::Matrix4d& H_cam_odo, std::vector<double>& scales,
                                   const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs1,
                                   const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& tvecs1,
                                   const std::vector<std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d> > >& rvecs2,
@@ -493,12 +533,15 @@ CamOdoCalibration::refineEstimate(Eigen::Matrix4d& H_cam_odo, std::vector<double
             ceres::CostFunction* costFunction =
                 // t is only flexible on x and y.
                 new ceres::AutoDiffCostFunction<CameraOdometerError, 6, 4, 2, 1>(
+                        // 6：输出的残差的维度，4：旋转四元数，2：平移维度（固定了z轴？），1：尺度
                     new CameraOdometerError(rvecs1.at(i).at(j), tvecs1.at(i).at(j), rvecs2.at(i).at(j), tvecs2.at(i).at(j)));
 
+            // 优化外参的四元数，外参的平移，外参的尺度
             problem.AddResidualBlock(costFunction, NULL, q_coeffs, t_coeffs, &scales.at(i));
         }
     }
 
+    // 允许用户定义参数块并将其与它们所属的流形相关联
     ceres::LocalParameterization* quaternionParameterization =
         new ceres::QuaternionParameterization;
 
@@ -514,9 +557,11 @@ CamOdoCalibration::refineEstimate(Eigen::Matrix4d& H_cam_odo, std::vector<double
 
     if (mVerbose)
     {
+        std::cout << "camodocalibration: Ceres: " << std::endl;
         std::cout << summary.BriefReport() << std::endl;
     }
 
+    // 优化了外参的平移和旋转
     q = Eigen::Quaterniond(q_coeffs[0], q_coeffs[1], q_coeffs[2], q_coeffs[3]);
     H_cam_odo.block<3,1>(0,3) << t_coeffs[0], t_coeffs[1], t_coeffs[2];
     H_cam_odo.block<3,3>(0,0) = q.toRotationMatrix();

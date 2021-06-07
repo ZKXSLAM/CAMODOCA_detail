@@ -302,8 +302,8 @@ public:
      * @tparam T
      * @param q_cam_odo   qoc
      * @param t_cam_odo   toc
-     * @param point
-     * @param residuals
+     * @param point       三维点
+     * @param residuals   残差
      * @return
      */
     template <typename T>
@@ -315,6 +315,7 @@ public:
         T att_odo[3] = {T(m_odo_att(0)), T(m_odo_att(1)), T(m_odo_att(2))};
         T q[4], t[3];
 
+        // 把里程计的位姿从世界坐标系转到相机坐标系
         worldToCameraTransform(q_cam_odo, t_cam_odo, p_odo, att_odo, q, t, m_optimize_cam_odo_z);
 
         std::vector<T> intrinsic_params(m_intrinsic_params.begin(), m_intrinsic_params.end());
@@ -1062,8 +1063,17 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
     return costFunction;
 }
 
-ceres::CostFunction*
-CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
+/**
+ *
+ * @param camera        相机指针
+ * @param odo_pos       里程计位置
+ * @param odo_att       里程计欧拉角
+ * @param observed_p    2D特征点
+ * @param flags         优化策略
+ * @param optimize_cam_odo_z  是否优化z轴
+ * @return
+ */
+ceres::CostFunction* CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                                           const Eigen::Vector3d& odo_pos,
                                           const Eigen::Vector3d& odo_att,
                                           const Eigen::Vector2d& observed_p,
@@ -1099,6 +1109,9 @@ CostFunctionFactory::generateCostFunction(const CameraConstPtr& camera,
                 costFunction =
                     new ceres::AutoDiffCostFunction<ReprojectionError3<PinholeCamera>, 2, 4, 3, 3>(
                         new ReprojectionError3<PinholeCamera>(intrinsic_params, odo_pos, odo_att, observed_p, optimize_cam_odo_z));
+                // <2 : residuals,4 : q ,3: t ,3 : points>
+                // bool operator()(const T* const q_cam_odo, const T* const t_cam_odo,
+                //                    const T* const point, T* residuals) const
             }
             else
             {

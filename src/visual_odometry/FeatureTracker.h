@@ -132,7 +132,7 @@ protected:
 
     const CameraConstPtr k_camera;
 
-    cv::Mat m_image;
+    cv::Mat m_image; // 该帧具有 相机的ID 和 该相机一帧的图像
     cv::Mat m_mask;
 
     bool m_init;
@@ -144,7 +144,7 @@ protected:
     std::vector<Point2DFeaturePtr> m_pointFeatures;
 
     SlidingWindowBA m_BA;
-    std::vector<FramePtr> m_frames; // 滑动窗口的每一帧？
+    std::vector<FramePtr> m_frames; // 滑动窗口的每一帧
     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > m_poses; // 滑动窗口中每一帧的相机在相机坐标系前后帧的位姿
 
     cv::Mat m_matchingMask;

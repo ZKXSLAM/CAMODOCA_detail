@@ -78,7 +78,7 @@ private:
     boost::signals2::signal<void ()> m_signalFinished;
 
     CamOdoCalibration m_camOdoCalib;
-    std::vector<std::vector<FramePtr> > m_frameSegments; // 存储滑动窗口的每一帧
+    std::vector<std::vector<FramePtr> > m_frameSegments; // 存储每个滑动窗口的每一帧
 
     AtomicData<cv::Mat>* m_image;    // 某一帧的图像
     const CameraConstPtr m_camera;   // 相机指针

@@ -70,7 +70,7 @@ CamOdoThread::~CamOdoThread()
 int
 CamOdoThread::cameraId(void) const
 {
-    return m_cameraId;
+    return m_cameraId; // 第几个相机
 }
 
 void
@@ -89,7 +89,7 @@ CamOdoThread::camOdoTransform(void) const
 
 const std::vector<std::vector<FramePtr> >& CamOdoThread::frameSegments(void) const
 {
-    return m_frameSegments;
+    return m_frameSegments; // 存储每个滑动窗口的每一帧
 }
 
 void
@@ -351,6 +351,7 @@ void CamOdoThread::threadFunction(void)
 
                 framePrev = frame;
 
+                // 给跟踪器添加图像帧失败
                 if (!camValid) //进入了20+次
                 {
                     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > voPoses = tracker.getPoses();
@@ -379,6 +380,7 @@ void CamOdoThread::threadFunction(void)
         // 如果里程计位姿的数量大于等于最小VO分割尺度 15
         if (odometryPoses.size() >= k_minVOSegmentSize)
         {
+            // 当前运动个数
             currentMotionCount = odometryPoses.size() - 1;
         }
 
@@ -456,12 +458,13 @@ void CamOdoThread::threadFunction(void)
     m_signalFinished();
 }
 
+// 只有跟踪失败或者结束且里程计位姿数 > 15时才会执行
 // 添加m_frameSegments 数据（相机，里程计位姿）
 /**
  *
  * @param camPoses  15+帧的相机位姿
  * @param odoPoses  15+帧的里程计位姿
- * @param frameSegment
+ * @param frameSegment  tracker中的m_frames : 滑动窗口中的每一帧
  */
 void CamOdoThread::addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> >& camPoses,
                                  const std::vector<OdometryPtr>& odoPoses,
@@ -506,7 +509,7 @@ void CamOdoThread::addCamOdoCalibData(const std::vector<Eigen::Matrix4d, Eigen::
         exit(0);
     }
 
-    // frameSegment = m_frames :  滑动窗口的每一帧？
+    // frameSegment = m_frames :  滑动窗口的每一帧
     m_frameSegments.push_back(frameSegment);
 }
 

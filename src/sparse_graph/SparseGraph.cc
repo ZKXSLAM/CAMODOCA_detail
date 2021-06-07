@@ -447,9 +447,9 @@ SparseGraph::frameSetSegment(int segmentId) const
 }
 
 std::vector<FrameSetSegment>&
-SparseGraph::frameSetSegments(void) // 对帧的集合分批次集合的分批次集合的集合
+SparseGraph::frameSetSegments(void)
 {
-    return m_frameSetSegments;
+    return m_frameSetSegments; // .size() =1
 }
 
 // frameSetSegments.size() 恒定为1
